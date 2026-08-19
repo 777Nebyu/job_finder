@@ -21,6 +21,16 @@ from src.utils.logger import setup_logger
 
 logger = setup_logger("gradio_app")
 
+# ZeroGPU Compatibility Fallback
+try:
+    import spaces
+    @spaces.GPU
+    def _hf_zero_gpu_init():
+        return True
+    _hf_zero_gpu_init()
+except Exception:
+    pass
+
 # Initialize Pipeline & Services
 config = AppConfig.load_from_file("config/config.yaml")
 pipeline = JobAlertPipeline(config)
