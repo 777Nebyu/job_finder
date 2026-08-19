@@ -23,6 +23,7 @@ filters:
     - "System Administrator"
     - "Front Desk"
     - "Administrative Assistant"
+    - "Secretary"
   exclude_keywords:
     - "Senior Director"
     - "Unpaid"
@@ -56,6 +57,9 @@ scrapers:
       enabled: true
       url: "https://ethiojobs.net/jobs"
       max_pages: 3
+    telegram_channels:
+      enabled: true
+      max_posts_per_channel: 15
     afriwork:
       enabled: true
       url: "https://afriworket.com/jobs"

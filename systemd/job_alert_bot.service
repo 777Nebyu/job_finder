@@ -1,0 +1,17 @@
+[Unit]
+Description=Job Alert Bot 24/7 Daemon Service
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/job_finder
+ExecStart=/home/ubuntu/job_finder/venv/bin/python main.py daemon
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

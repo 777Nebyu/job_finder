@@ -1,55 +1,57 @@
-# Job Alert Bot (Tier 1)
+# Job Alert Bot (Tier 1 + Interactive Commands & Scrapers)
 
-A modular, multi-source job scraping and alert pipeline designed to monitor job boards (Ethiojobs, Afriwork, Josad, RemoteOK, Jobicy), deduplicate listings, filter by custom inclusion/exclusion rules, and send formatted alerts directly to Telegram channels, groups, or private chats.
+A modular, multi-source job scraping and alert pipeline designed to monitor job boards (Ethiojobs, Telegram Channels, RemoteOK, Jobicy, Afriwork, Josad), deduplicate listings, filter by customizable inclusion/exclusion rules, and send formatted alert cards directly to Telegram channels, groups, or private chats.
 
 ---
 
-## 📌 Architecture & Modules
+## 🌟 Key Features
 
-The pipeline follows a decoupled 5-stage architecture:
+1. **Multi-Source Scraping Engine:**
+   - **Ethiojobs.net:** Server-rendered Next.js pagination parser.
+   - **Telegram Public Channels:** Web scraper for `@freelance_ethio`, `@Ethiojobsofficial`, `@hahujobs`, `@shegerjobs` without requiring Telegram API keys.
+   - **RemoteOK & Jobicy:** Public JSON APIs for worldwide & Africa-eligible remote positions.
+   - **Afriwork & Josad:** Scrapers with isolated error containment.
+
+2. **Dual-Layer Deduplication:**
+   - **Intra-Source:** Deterministic SHA-256 hash lookup ($O(1)$ fast check).
+   - **Cross-Source:** Fuzzy string matching via `RapidFuzz` on normalized title + company to prevent duplicate alerts from multiple boards.
+
+3. **Interactive Telegram Commands (24/7 Control):**
+   - `/status` — View total jobs stored, last scrape time, and active sources.
+   - `/scrape_now` — Trigger an immediate on-demand scrape and alert cycle.
+   - `/addkeyword <word>` — Add a new search keyword dynamically on the fly.
+   - `/removekeyword <word>` — Remove an existing dynamic keyword.
+   - `/listkeywords` — View all active include and exclude keywords.
+   - `/pause` & `/resume` — Temporarily pause or resume alerts.
+   - `/help` — View command manual.
+
+4. **100% Free 24/7 Cloud Deployment:**
+   - Dockerized with non-root security and persistent SQLite storage.
+   - 1-click free deployment on **Koyeb**, **Render**, or **Hugging Face Spaces**.
+
+---
+
+## 📌 Architecture
 
 ```
 [ Scrapers (Module 1) ] 
-       │ (RawJobPosting)
+       │ (Ethiojobs, Telegram Channels, RemoteOK, Jobicy)
        ▼
-[ Normalization (Module 2) ]
-       │ (Canonical JobPosting)
-       ▼
-[ Deduplication (Module 3) ] (Intra-source SHA-256 + Cross-source Fuzzy RapidFuzz)
+[ Normalization (Module 2) ] (HTML Stripping, Universal Date Parser)
        │
        ▼
-[ SQLite Storage (Module 3) ]
+[ Deduplication & Storage (Module 3) ] (SHA-256 + RapidFuzz + SQLite)
        │
        ▼
-[ Filter Engine (Module 4) ] (Include / Exclude Keywords & Location)
+[ Filter Engine (Module 4) ] (Dynamic & Static Keyword Rules)
        │
        ▼
-[ Telegram Notifier (Module 5) ]
+[ Telegram Bot (Module 5) ] (HTML Alert Cards + Interactive Commands)
 ```
 
 ---
 
-## 🚀 Module 0 & Module 1 Status
-
-- **Module 0 (Core Foundation & Models):**
-  - Canonical Data Schema (`src/models/canonical_job.py`)
-  - Raw Posting Model (`src/models/raw_job.py`)
-  - Centralized Configuration (`config/settings.py` + `config/config.yaml`)
-  - Rotating File & Console Logger (`src/utils/logger.py`)
-
-- **Module 1 (Pluggable Scraper Engine):**
-  - Base Scraper ABC with FR-9 error isolation (`src/scrapers/base.py`)
-  - Dynamic Scraper Registry (`src/scrapers/registry.py`)
-  - Resilient & Polite HTTP Client (`src/scrapers/http_client.py`)
-  - **Ethiojobs Scraper:** Server-rendered Next.js pagination parser (`src/scrapers/sources/ethiojobs.py`)
-  - **Afriwork Scraper:** Isolated scraper with API/HTML fallback (`src/scrapers/sources/afriwork.py`)
-  - **Josad Scraper:** Isolated scraper with session support (`src/scrapers/sources/josad.py`)
-  - **RemoteOK Scraper:** Public JSON API scraper for worldwide & African remote jobs (`src/scrapers/sources/remoteok.py`)
-  - **Jobicy Scraper:** Remote jobs JSON API scraper (`src/scrapers/sources/jobicy.py`)
-
----
-
-## 🛠️ Setup & Running
+## 🚀 Quickstart
 
 ### 1. Install Dependencies
 ```bash
@@ -62,7 +64,33 @@ Edit `config/config.yaml` to set your:
 - Include & Exclude Keywords
 - Enabled Job Sources
 
-### 3. Run Automated Tests
+### 3. Run Commands
 ```bash
+# Run a single scrape & notify cycle:
+python main.py run
+
+# Start 24/7 background scheduler & interactive Telegram bot:
+python main.py daemon
+
+# Run pre-flight diagnostics:
+python main.py check
+
+# Test a specific scraper (e.g., telegram_channels, ethiojobs):
+python main.py test-source telegram_channels
+
+# View database statistics:
+python main.py stats
+
+# Run full automated test suite:
 pytest
 ```
+
+---
+
+## ☁️ 24/7 Free Cloud Deployment
+
+See **[DEPLOYMENT.md](DEPLOYMENT.md)** for step-by-step instructions to deploy on:
+- **Koyeb** (100% Free 24/7 Eco Instance)
+- **Render.com** (Free Web/Worker Service)
+- **Hugging Face Spaces** (Free Docker Container 24/7)
+- **Docker Compose & Linux Systemd**

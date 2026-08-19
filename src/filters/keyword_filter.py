@@ -1,11 +1,13 @@
 """
 Keyword and Rule Filter Engine (FR-7).
 Evaluates JobPosting against inclusion, exclusion, and location criteria.
+Combines static config keywords with persistent dynamic keywords from SQLite.
 """
 
 import re
 from typing import List, Optional
 from config.settings import FilterConfig
+from src.filters.dynamic_keywords import DynamicKeywordStore
 from src.models.canonical_job import JobPosting
 from src.models.filter_rules import FilterMatchResult
 from src.utils.logger import setup_logger
@@ -18,18 +20,39 @@ class JobFilterEngine:
     Applies configurable inclusion/exclusion keyword rules and location filters.
     """
 
-    def __init__(self, config: FilterConfig):
+    def __init__(self, config: FilterConfig, keyword_store: Optional[DynamicKeywordStore] = None):
         self.config = config
+        self.keyword_store = keyword_store
+        self._refresh_patterns()
+
+    def _refresh_patterns(self) -> None:
+        """Compiles regex patterns from both config and dynamic store."""
+        includes = list(self.config.include_keywords)
+        excludes = list(self.config.exclude_keywords)
+
+        if self.keyword_store:
+            dyn_inc = self.keyword_store.get_all_dynamic_keywords("include")
+            dyn_exc = self.keyword_store.get_all_dynamic_keywords("exclude")
+            includes.extend([k for k in dyn_inc if k not in includes])
+            excludes.extend([k for k in dyn_exc if k not in excludes])
+
+        self.current_includes = includes
+        self.current_excludes = excludes
+
         self._include_patterns = [
             self._compile_pattern(kw, self.config.case_sensitive)
-            for kw in self.config.include_keywords
+            for kw in includes
             if kw.strip()
         ]
         self._exclude_patterns = [
             self._compile_pattern(kw, self.config.case_sensitive)
-            for kw in self.config.exclude_keywords
+            for kw in excludes
             if kw.strip()
         ]
+
+    def reload(self) -> None:
+        """Reloads dynamic keywords and recompiles regex patterns."""
+        self._refresh_patterns()
 
     @staticmethod
     def _compile_pattern(keyword: str, case_sensitive: bool) -> re.Pattern:
@@ -46,12 +69,15 @@ class JobFilterEngine:
         Evaluates a single JobPosting against filter criteria.
         Returns a FilterMatchResult indicating whether it passes.
         """
+        # Ensure latest patterns are loaded
+        self._refresh_patterns()
+
         # Search target text includes title, company, description, and tags
         search_text = f"{job.title} {job.company} {' '.join(job.tags)} {job.description[:1000]}"
 
         # 1. Check Exclude Keywords First
         matched_excludes: List[str] = []
-        for kw, pattern in zip(self.config.exclude_keywords, self._exclude_patterns):
+        for kw, pattern in zip(self.current_excludes, self._exclude_patterns):
             if pattern.search(search_text):
                 matched_excludes.append(kw)
 
@@ -68,7 +94,7 @@ class JobFilterEngine:
             # If no include keywords defined, pass everything by default
             is_include_matched = True
         else:
-            for kw, pattern in zip(self.config.include_keywords, self._include_patterns):
+            for kw, pattern in zip(self.current_includes, self._include_patterns):
                 if pattern.search(search_text):
                     matched_includes.append(kw)
             is_include_matched = len(matched_includes) > 0

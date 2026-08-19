@@ -1,0 +1,11 @@
+services:
+  job-alert-bot:
+    build: .
+    container_name: job_alert_bot
+    restart: unless-stopped
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./config/config.yaml:/app/config/config.yaml:ro
+    environment:
+      - PYTHONUNBUFFERED=1

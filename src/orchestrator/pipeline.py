@@ -7,6 +7,7 @@ Fetch (Stage 1) -> Normalize (Stage 2) -> Dedupe & Store (Stage 3) -> Filter (St
 import time
 from typing import Dict, List, Optional
 from config.settings import AppConfig
+from src.filters.dynamic_keywords import DynamicKeywordStore
 from src.filters.keyword_filter import JobFilterEngine
 from src.models.canonical_job import JobPosting
 from src.models.raw_job import RawJobPosting
@@ -35,13 +36,14 @@ class JobAlertPipeline:
         # 1. Initialize Storage & Deduplicator (Module 3)
         self.db_manager = DatabaseManager(self.config.database.db_path)
         self.repository = JobRepository(self.db_manager)
+        self.keyword_store = DynamicKeywordStore(self.db_manager)
         self.deduplicator = Deduplicator(
             repository=self.repository,
             fuzzy_threshold=self.config.database.fuzzy_threshold,
         )
 
         # 2. Initialize Filter Engine (Module 4)
-        self.filter_engine = JobFilterEngine(self.config.filters)
+        self.filter_engine = JobFilterEngine(self.config.filters, keyword_store=self.keyword_store)
 
         # 3. Initialize Notifiers (Module 5)
         self.notifiers: List[BaseNotifier] = []
