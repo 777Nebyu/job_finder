@@ -3,9 +3,10 @@ Interactive Telegram Bot Command Handlers.
 Implements interactive commands for runtime control:
 /start, /help, /status, /addkeyword, /removekeyword, /listkeywords,
 /addchannel, /removechannel, /listchannels, /clear, /scrape_now, /pause, /resume
-Automatically registers bot command popup menu with Telegram API.
+Supports chat history clearing and auto-registered Telegram command menu.
 """
 
+import asyncio
 from datetime import datetime, timezone
 import html
 from typing import Optional
@@ -35,7 +36,7 @@ BOT_COMMANDS_MENU = [
     BotCommand("addchannel", "Add Telegram job channels to monitor"),
     BotCommand("removechannel", "Remove monitored Telegram channels"),
     BotCommand("listchannels", "List all monitored Telegram channels"),
-    BotCommand("clear", "Clear dynamic keywords or channels (keywords/channels/all)"),
+    BotCommand("clear", "Clean chat history (e.g. /clear or /clear 50) or reset keywords/channels"),
     BotCommand("pause", "Pause automatic job notifications"),
     BotCommand("resume", "Resume automatic job notifications"),
     BotCommand("help", "Display full command guide"),
@@ -44,7 +45,7 @@ BOT_COMMANDS_MENU = [
 
 class TelegramCommandHandler:
     """
-    Manages interactive Telegram bot commands.
+    Manages interactive Telegram bot commands and chat maintenance.
     """
 
     def __init__(
@@ -76,20 +77,20 @@ class TelegramCommandHandler:
         """Handles /start and /help commands."""
         help_text = (
             "👋 <b>Job Alert Bot — Command Menu</b>\n\n"
-            "📊 <b>/status</b> — System health & total jobs stored\n"
+            "📊 <b>/status</b> — System health, stored jobs & 8-minute scheduler status\n"
             "🔍 <b>/scrape_now</b> — Trigger an immediate on-demand scrape\n\n"
-            "<b>📡 Telegram Channels (Bulk Supported):</b>\n"
+            "<b>🧹 Chat Maintenance:</b>\n"
+            "🗑️ <b>/clear</b> — Clean recent chat history (e.g. <code>/clear</code> or <code>/clear 50</code>)\n"
+            "🗑️ <b>/clear keywords</b> — Clear custom added keywords\n"
+            "🗑️ <b>/clear channels</b> — Clear custom added channels\n\n"
+            "<b>📡 Telegram Channels Management:</b>\n"
             "➕ <b>/addchannel @ch1 @ch2</b> — Add channels to monitor\n"
             "➖ <b>/removechannel @ch1</b> — Remove monitored channel\n"
             "📋 <b>/listchannels</b> — List all monitored channels\n\n"
-            "<b>🎯 Keywords Management (Bulk Supported):</b>\n"
+            "<b>🎯 Keywords Management:</b>\n"
             "➕ <b>/addkeyword word1, word2</b> — Add search keywords\n"
             "➖ <b>/removekeyword word1</b> — Remove search keyword\n"
             "📋 <b>/listkeywords</b> — View all active keywords\n\n"
-            "<b>🧹 Reset & Maintenance:</b>\n"
-            "🗑️ <b>/clear keywords</b> — Clear all dynamic keywords\n"
-            "🗑️ <b>/clear channels</b> — Clear all custom channels\n"
-            "🗑️ <b>/clear all</b> — Reset both custom keywords & channels\n\n"
             "<b>⚙️ Controls:</b>\n"
             "⏸️ <b>/pause</b> — Pause automatic alerts\n"
             "▶️ <b>/resume</b> — Resume automatic alerts\n"
@@ -103,7 +104,7 @@ class TelegramCommandHandler:
         total_jobs = self.repository.count_total_jobs()
         dynamic_count = len(self.keyword_store.get_all_dynamic_keywords("include"))
         total_keywords = len(self.config.filters.include_keywords) + dynamic_count
-        status_state = "⏸️ <b>Paused</b>" if self.is_paused else "🟢 <b>Active (Running 24/7)</b>"
+        status_state = "⏸️ <b>Paused</b>" if self.is_paused else "🟢 <b>Active (Scraping every 8 mins)</b>"
 
         last_run_str = (
             self.last_scrape_time.strftime("%Y-%m-%d %H:%M:%S UTC")
@@ -120,7 +121,7 @@ class TelegramCommandHandler:
             f"📦 <b>Total Stored Postings:</b> <code>{total_jobs}</code>\n"
             f"🎯 <b>Active Target Keywords:</b> <code>{total_keywords}</code>\n"
             f"📡 <b>Monitored Channels:</b> <code>{channels_count}</code>\n"
-            f"⏱️ <b>Scrape Interval:</b> Every <code>{self.config.scheduler.interval_minutes}m</code>\n"
+            f"⏱️ <b>Scrape Interval:</b> Every <code>8 minutes</code>\n"
             f"🕒 <b>Last Pipeline Cycle:</b> <code>{last_run_str}</code>\n"
             "━━━━━━━━━━━━━━━━━━━━"
         )
@@ -128,11 +129,11 @@ class TelegramCommandHandler:
             await update.effective_message.reply_html(status_text)
 
     async def add_keyword_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handles /addkeyword word1, word2, word3 command."""
+        """Handles /addkeyword word1, word2 command."""
         if not context.args:
             if update.effective_message:
                 await update.effective_message.reply_text(
-                    "⚠️ Please specify one or more keywords (comma-separated).\nExample: /addkeyword IT Officer, Receptionist, Accountant"
+                    "⚠️ Please specify one or more keywords (comma-separated).\nExample: /addkeyword IT Officer, Receptionist"
                 )
             return
 
@@ -196,11 +197,11 @@ class TelegramCommandHandler:
             await update.effective_message.reply_html(text)
 
     async def add_channel_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handles /addchannel @ch1 @ch2 @ch3 bulk command."""
+        """Handles /addchannel @ch1 @ch2 bulk command."""
         if not context.args:
             if update.effective_message:
                 await update.effective_message.reply_text(
-                    "⚠️ Please specify one or more Telegram channels (separated by space or comma).\nExample: /addchannel @harmeejobs @effoi_jobs @elelanajobs"
+                    "⚠️ Please specify one or more Telegram channels.\nExample: /addchannel @harmeejobs @effoi_jobs"
                 )
             return
 
@@ -209,11 +210,11 @@ class TelegramCommandHandler:
 
         msg = ""
         if added:
-            msg += f"✅ Successfully added {len(added)} channel(s) to monitor:\n" + "\n".join([f"• {c}" for c in added])
+            msg += f"✅ Added {len(added)} channel(s) to monitor:\n" + "\n".join([f"• {c}" for c in added])
         if skipped:
             if msg:
                 msg += "\n\n"
-            msg += f"⚠️ Already being monitored: {', '.join(skipped)}"
+            msg += f"⚠️ Already monitored: {', '.join(skipped)}"
 
         if update.effective_message:
             await update.effective_message.reply_text(msg or "⚠️ No valid channel handles provided.")
@@ -223,7 +224,7 @@ class TelegramCommandHandler:
         if not context.args:
             if update.effective_message:
                 await update.effective_message.reply_text(
-                    "⚠️ Please specify one or more Telegram channels to remove.\nExample: /removechannel @harmeejobs @effoi_jobs"
+                    "⚠️ Please specify one or more Telegram channels to remove.\nExample: /removechannel @harmeejobs"
                 )
             return
 
@@ -259,49 +260,80 @@ class TelegramCommandHandler:
         text = (
             f"📡 <b>Monitored Telegram Channels ({len(all_ch)})</b>\n\n"
             f"{ch_items}\n\n"
-            f"<i>Add multiple channels anytime: <code>/addchannel @ch1 @ch2 @ch3</code></i>"
+            f"<i>Add multiple channels anytime: <code>/addchannel @ch1 @ch2</code></i>"
         )
         if update.effective_message:
             await update.effective_message.reply_html(text)
 
     async def clear_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handles /clear [keywords|channels|all] command."""
-        target = (context.args[0].lower() if context.args else "help").strip()
+        """
+        Handles /clear command.
+        1. If arg is 'keywords' -> clears dynamic keywords.
+        2. If arg is 'channels' -> clears dynamic channels.
+        3. If no arg or a number (e.g. /clear, /clear 50, /clear chat) -> deletes recent chat history messages!
+        """
+        chat_id = update.effective_chat.id if update.effective_chat else None
+        current_msg_id = update.effective_message.message_id if update.effective_message else None
 
-        if target in ["keyword", "keywords"]:
+        if not chat_id or not current_msg_id:
+            return
+
+        arg = (context.args[0].lower() if context.args else "").strip()
+
+        # Mode A: Clear Keywords
+        if arg in ["keyword", "keywords"]:
             with self.db_manager.get_connection() as conn:
                 conn.execute("DELETE FROM dynamic_keywords;")
                 conn.commit()
             if self.pipeline and hasattr(self.pipeline, "filter_engine"):
                 self.pipeline.filter_engine.reload()
             if update.effective_message:
-                await update.effective_message.reply_text("🧹 Cleared all dynamic custom keywords. (Config defaults remain active).")
+                await update.effective_message.reply_text("🧹 Cleared all custom keywords.")
+            return
 
-        elif target in ["channel", "channels"]:
+        # Mode B: Clear Channels
+        if arg in ["channel", "channels"]:
             with self.db_manager.get_connection() as conn:
                 conn.execute("DELETE FROM dynamic_channels;")
                 conn.commit()
             if update.effective_message:
-                await update.effective_message.reply_text("🧹 Cleared all dynamic custom channels. (Default 6 channels remain active).")
+                await update.effective_message.reply_text("🧹 Cleared all custom channels.")
+            return
 
-        elif target == "all":
-            with self.db_manager.get_connection() as conn:
-                conn.execute("DELETE FROM dynamic_keywords;")
-                conn.execute("DELETE FROM dynamic_channels;")
-                conn.commit()
-            if self.pipeline and hasattr(self.pipeline, "filter_engine"):
-                self.pipeline.filter_engine.reload()
-            if update.effective_message:
-                await update.effective_message.reply_text("🧹 Cleared all custom dynamic keywords and custom channels!")
+        # Mode C: Clear Chat History (Default behavior for /clear or /clear <count>)
+        count = 50
+        if arg.isdigit():
+            count = min(int(arg), 100)
 
-        else:
-            if update.effective_message:
-                await update.effective_message.reply_html(
-                    "⚠️ <b>Usage for /clear:</b>\n"
-                    "• <code>/clear keywords</code> — Clear custom added keywords\n"
-                    "• <code>/clear channels</code> — Clear custom added channels\n"
-                    "• <code>/clear all</code> — Clear both custom keywords and channels"
-                )
+        deleted_count = 0
+        bot = context.bot
+
+        # Delete command message itself
+        try:
+            await bot.delete_message(chat_id=chat_id, message_id=current_msg_id)
+        except Exception:
+            pass
+
+        # Loop backwards through recent message IDs and delete
+        for msg_id in range(current_msg_id - 1, max(1, current_msg_id - count - 1), -1):
+            try:
+                await bot.delete_message(chat_id=chat_id, message_id=msg_id)
+                deleted_count += 1
+            except Exception:
+                # Message was already deleted or older than 48 hours
+                continue
+
+        # Send temporary confirmation message and auto-delete it after 3 seconds
+        try:
+            confirm = await bot.send_message(
+                chat_id=chat_id,
+                text=f"🧹 <b>Chat history cleaned!</b> Deleted {deleted_count} recent message(s).",
+                parse_mode="HTML",
+            )
+            await asyncio.sleep(3)
+            await bot.delete_message(chat_id=chat_id, message_id=confirm.message_id)
+        except Exception:
+            pass
 
     async def pause_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handles /pause command."""
@@ -357,7 +389,7 @@ class TelegramCommandHandler:
         app.add_handler(CommandHandler("addchannel", self.add_channel_command))
         app.add_handler(CommandHandler("removechannel", self.remove_channel_command))
         app.add_handler(CommandHandler("listchannels", self.list_channels_command))
-        app.add_handler(CommandHandler("clear", self.clear_command))
+        app.add_handler(CommandHandler(["clear", "clearchat"], self.clear_command))
         app.add_handler(CommandHandler("scrape_now", self.scrape_now_command))
         app.add_handler(CommandHandler("pause", self.pause_command))
         app.add_handler(CommandHandler("resume", self.resume_command))

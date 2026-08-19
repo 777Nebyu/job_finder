@@ -10,7 +10,7 @@ bot:
   enabled: true
 
 scheduler:
-  interval_minutes: 30
+  interval_minutes: 8 # Scrapes every 8 minutes
   run_on_startup: true
 
 filters:
@@ -34,15 +34,15 @@ filters:
     - "Africa"
     - "Remote"
     - "Worldwide"
-  require_remote_or_africa: false # Set to true to filter strictly by region
+  require_remote_or_africa: false
   case_sensitive: false
 
 database:
   db_path: "data/jobs.db"
-  fuzzy_threshold: 85 # Cross-source fuzzy match percentage (RapidFuzz)
+  fuzzy_threshold: 85
 
 logging:
-  level: "INFO" # DEBUG, INFO, WARNING, ERROR
+  level: "INFO"
   log_file: "logs/job_alert_bot.log"
   max_bytes: 10485760 # 10MB
   backup_count: 5
@@ -59,7 +59,7 @@ scrapers:
       max_pages: 3
     telegram_channels:
       enabled: true
-      max_posts_per_channel: 15
+      max_posts_per_channel: 30
     afriwork:
       enabled: true
       url: "https://afriworket.com/jobs"

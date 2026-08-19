@@ -19,7 +19,7 @@ class BotConfig(BaseModel):
 
 
 class SchedulerConfig(BaseModel):
-    interval_minutes: int = Field(default=30, description="Pipeline run interval in minutes")
+    interval_minutes: int = Field(default=8, description="Pipeline run interval in minutes (scrapes every 8 mins)")
     run_on_startup: bool = Field(default=True, description="Whether to trigger a scrape immediately on boot")
 
 
