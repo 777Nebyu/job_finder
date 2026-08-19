@@ -1,0 +1,72 @@
+# ==============================================================================
+# Job Alert Bot - Centralized Configuration File
+# ==============================================================================
+
+bot:
+  telegram_token: "8680554660:AAEywFEIzVJ9cY9kmpThQlpxCLxoiHNcadg"
+  chat_id: "-5412714799"
+  mode: "telegram" # options: telegram, console, both
+  rate_limit_per_second: 1.0 # Pause between messages to prevent Telegram 429 errors
+  enabled: true
+
+scheduler:
+  interval_minutes: 30
+  run_on_startup: true
+
+filters:
+  include_keywords:
+    - "IT OFFICER"
+    - "receptionist"
+    - "reception"
+    - "database administrator"
+    - "IT Specialist"
+    - "System Administrator"
+    - "Front Desk"
+    - "Administrative Assistant"
+  exclude_keywords:
+    - "Senior Director"
+    - "Unpaid"
+    - "Volunteer"
+  locations:
+    - "Addis Ababa"
+    - "Ethiopia"
+    - "Africa"
+    - "Remote"
+    - "Worldwide"
+  require_remote_or_africa: false # Set to true to filter strictly by region
+  case_sensitive: false
+
+database:
+  db_path: "data/jobs.db"
+  fuzzy_threshold: 85 # Cross-source fuzzy match percentage (RapidFuzz)
+
+logging:
+  level: "INFO" # DEBUG, INFO, WARNING, ERROR
+  log_file: "logs/job_alert_bot.log"
+  max_bytes: 10485760 # 10MB
+  backup_count: 5
+
+scrapers:
+  default_user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 JobAlertBot/1.0"
+  request_timeout_seconds: 15
+  rate_limit_delay_seconds: 1.5
+
+  sources:
+    ethiojobs:
+      enabled: true
+      url: "https://ethiojobs.net/jobs"
+      max_pages: 3
+    afriwork:
+      enabled: true
+      url: "https://afriworket.com/jobs"
+    josad:
+      enabled: true
+      url: "https://josad.net/jobs"
+    remoteok:
+      enabled: true
+      url: "https://remoteok.com/api"
+      max_jobs: 50
+    jobicy:
+      enabled: true
+      url: "https://jobicy.com/api/v2/remote-jobs"
+      count: 30
