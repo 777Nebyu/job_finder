@@ -1,90 +1,58 @@
-# 🚀 100% Free 24/7 Deployment Guide on Hugging Face Spaces (Gradio)
+# 🚀 100% Free 24/7 Deployment Guide on Render.com
 
-This guide shows you how to deploy the **Job Alert Bot** on **Hugging Face Spaces** using the **Gradio SDK** (which is **100% Free with NO credit card and NO payment required**).
+This guide shows you how to deploy the **Job Alert Bot** on **Render.com** for **$0 (100% Free forever, no credit card required)**.
 
 ---
 
-## 🌟 Why Hugging Face Gradio Space?
+## 🌟 Why Render.com?
 
-| Feature | Hugging Face Gradio Free Tier |
-| :--- | :--- |
-| **Cost** | **$0 / month forever (100% Free)** |
-| **Credit Card Required?** | **NO** (Sign up with just an email) |
-| **Hardware** | **2 vCPUs · 16 GB RAM · 50 GB Disk** |
-| **Uptime** | **Runs 24/7 continuously** |
-| **Live Web UI** | **Included** (Live Job Explorer, Keyword Manager, Trigger Scrape button) |
+* **100% Free Tier**: $0/month.
+* **Direct GitHub Sync**: Automatically updates whenever you push to GitHub.
+* **Zero Configuration**: Ready with `render.yaml` Blueprint.
+* **Live Dashboard & Telegram Bot**: Both your Gradio dashboard and your Telegram Bot run 24/7.
 
 ---
 
 ## 🛠️ Step-by-Step Deployment (Takes 2 Minutes)
 
-### Step 1: Create a Free Account on Hugging Face
-1. Go to: **[huggingface.co/join](https://huggingface.co/join)** and create your free account.
+### Step 1: Sign in to Render with GitHub
+1. Go to: **[https://dashboard.render.com/register](https://dashboard.render.com/register)**
+2. Click **Sign up with GitHub** (Free, no credit card required).
 
 ---
 
-### Step 2: Create a New Space
-1. Open this link: **[huggingface.co/new-space](https://huggingface.co/new-space)**
-2. Fill in the form:
-   * **Space name**: `job-alert-bot` (or any name you want)
-   * **License**: `mit`
-   * **Select the Space SDK**: Click **Gradio** *(Do NOT select Docker; Gradio is 100% free with no credit card!)*
-   * **Space Hardware**: Select **Free (CPU basic · 2 vCPU · 16 GB)**
-   * **Visibility**: **Public** or **Private**
-3. Click **Create Space**.
+### Step 2: Create a New Web Service
+1. In your Render Dashboard, click the **New +** button (top right) $\rightarrow$ select **Web Service**.
+2. Select **Build and deploy from a Git repository** $\rightarrow$ Click **Next**.
+3. Choose your repository: **`777Nebyu/job_finder`** (Click **Connect**).
 
 ---
 
-### Step 3: Get Your Free Hugging Face Write Token
-1. Go to: **[huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)**
-2. Click **Create new token**.
-3. Select **Token type:** **`Write`** and name it `bot-deploy`.
-4. Click **Generate a token** and **copy** it.
+### Step 3: Configure Settings (Takes 30 Seconds)
+Render will automatically detect the settings from `render.yaml`, or you can confirm:
+
+* **Name**: `job-alert-bot`
+* **Region**: Any (e.g., `Oregon (US West)` or `Frankfurt (EU)`)
+* **Branch**: `main`
+* **Runtime**: `Python 3`
+* **Build Command**: `pip install -r requirements.txt`
+* **Start Command**: `python app.py`
+* **Instance Type**: Select **Free** ($0 / month)
 
 ---
 
-### Step 4: Push Your Code to Hugging Face
-
-Open your computer's terminal (or Command Prompt) inside your `job_finder` repository folder and run:
-
-```bash
-# 1. Add your Hugging Face Space as a remote
-git remote add space https://huggingface.co/spaces/<YOUR_HF_USERNAME>/job-alert-bot
-
-# 2. Push to Hugging Face
-git push -u space main
-```
-
-*When prompted:*
-* **Username**: Your Hugging Face username.
-* **Password**: The **Write Token** (`hf_...`) you copied in Step 3.
+### Step 4: Click "Deploy Web Service"
+1. Scroll to the bottom and click **Create Web Service** (or **Deploy Web Service**).
+2. Render will clone your GitHub repository, install the dependencies, and start the bot.
+3. In ~1 minute, the status will show **🟢 Live**!
 
 ---
 
-### Step 5: That's It! Your Bot is Live 24/7!
-
-1. Open your Space URL:
-   `https://huggingface.co/spaces/<YOUR_HF_USERNAME>/job-alert-bot`
-2. Hugging Face will install dependencies and start `app.py`.
-3. In under 1 minute, your Space will show **🟢 Running** with:
-   * **Live Job Explorer**: Browse and search all scraped jobs.
-   * **Keyword Filter Manager**: Add or remove search keywords from the web.
-   * **On-Demand Scrape**: Click to trigger a scrape anytime.
-   * **24/7 Background Scheduler**: Automatically scrapes Ethiojobs, Telegram Channels, RemoteOK, and Jobicy every 30 minutes.
-   * **Telegram Bot Listener**: Continuously listens for commands in your Telegram group (`Job filter`).
-
----
-
-## 📱 Interactive Telegram Commands
-
-You can control the bot directly from your Telegram group (`Job filter`):
-
-| Command | Action |
-| :--- | :--- |
-| **`/status`** | View uptime, total stored postings, and scraper state |
-| **`/scrape_now`** | Triggers an immediate scrape across all sources |
-| **`/addkeyword <word>`** | Adds a search keyword on the fly (e.g. `/addkeyword DevOps`) |
-| **`/removekeyword <word>`** | Removes an existing keyword |
-| **`/listkeywords`** | Displays all active include & exclude keywords |
-| **`/pause` & `/resume`** | Pause or resume automated alerts |
-| **`/help`** | Displays command menu |
+### Step 5: Test Your Bot in Telegram!
+Once live:
+1. Open your Telegram group (**`Job filter`**).
+2. Send:
+   * **`/status`**
+   * **`/scrape_now`**
+   * **`/listkeywords`**
+3. The bot will reply immediately and run **24/7 continuously in the cloud for $0**!

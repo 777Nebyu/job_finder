@@ -219,9 +219,11 @@ with gr.Blocks(title="Job Alert Bot 24/7") as demo:
     demo.load(get_dashboard_stats, outputs=[status_box, total_jobs_box, keywords_count_box, uptime_box])
 
 if __name__ == "__main__":
+    import os
+    port = int(os.environ.get("PORT", 7860))
     launch_kwargs = {
         "server_name": "0.0.0.0",
-        "server_port": 7860,
+        "server_port": port,
     }
     if "ssr_mode" in inspect.signature(demo.launch).parameters:
         launch_kwargs["ssr_mode"] = False
