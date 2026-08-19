@@ -1,6 +1,6 @@
 """
 Dynamic Channel Store for Telegram Channel Scraper.
-Allows adding and removing Telegram job channels dynamically via Telegram Bot commands and Web UI.
+Allows adding and removing multiple Telegram job channels dynamically.
 """
 
 from datetime import datetime, timezone
@@ -38,6 +38,8 @@ class DynamicChannelStore:
         ch = channel.strip()
         ch = re.sub(r"^https?://t\.me/(?:s/)?", "", ch)
         ch = ch.lstrip("@").strip().rstrip("/")
+        # Remove any trailing commas or spaces
+        ch = ch.strip(", ")
         return ch
 
     def add_channel(self, channel: str) -> Tuple[bool, str]:
@@ -62,6 +64,28 @@ class DynamicChannelStore:
             logger.error(f"Error adding channel '@{clean_ch}': {e}")
             return False, f"❌ Error saving channel: {e}"
 
+    def add_multiple_channels(self, raw_input: str) -> Tuple[List[str], List[str]]:
+        """
+        Parses and adds multiple channels separated by spaces, commas, or newlines.
+        Returns (added_channels, skipped_or_existing_channels).
+        """
+        # Split by comma, space, or newline
+        tokens = re.split(r"[\s,\n]+", raw_input.strip())
+        added = []
+        skipped = []
+
+        for token in tokens:
+            cleaned = self.clean_channel_name(token)
+            if not cleaned:
+                continue
+            ok, _ = self.add_channel(cleaned)
+            if ok:
+                added.append(f"@{cleaned}")
+            else:
+                skipped.append(f"@{cleaned}")
+
+        return added, skipped
+
     def remove_channel(self, channel: str) -> Tuple[bool, str]:
         """Remove a dynamic channel. Returns (success, message)."""
         clean_ch = self.clean_channel_name(channel)
@@ -75,6 +99,27 @@ class DynamicChannelStore:
             logger.info(f"Removed dynamic channel: @{clean_ch}")
             return True, f"✅ Removed @{clean_ch} from monitored channels."
         return False, f"⚠️ Channel @{clean_ch} was not found in dynamic channels."
+
+    def remove_multiple_channels(self, raw_input: str) -> Tuple[List[str], List[str]]:
+        """
+        Parses and removes multiple channels.
+        Returns (removed_channels, not_found_channels).
+        """
+        tokens = re.split(r"[\s,\n]+", raw_input.strip())
+        removed = []
+        not_found = []
+
+        for token in tokens:
+            cleaned = self.clean_channel_name(token)
+            if not cleaned:
+                continue
+            ok, _ = self.remove_channel(cleaned)
+            if ok:
+                removed.append(f"@{cleaned}")
+            else:
+                not_found.append(f"@{cleaned}")
+
+        return removed, not_found
 
     def get_all_dynamic_channels(self) -> List[str]:
         """Retrieve all stored dynamic channels."""

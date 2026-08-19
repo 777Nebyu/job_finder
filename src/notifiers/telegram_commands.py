@@ -3,6 +3,7 @@ Interactive Telegram Bot Command Handlers.
 Implements interactive commands for runtime control:
 /start, /help, /status, /addkeyword, /removekeyword, /listkeywords,
 /addchannel, /removechannel, /listchannels, /scrape_now, /pause, /resume
+Supports single and bulk operations.
 """
 
 from datetime import datetime, timezone
@@ -51,16 +52,16 @@ class TelegramCommandHandler:
         """Handles /start and /help commands."""
         help_text = (
             "👋 <b>Job Alert Bot — Command Menu</b>\n\n"
-            "📊 <b>/status</b> — System health, total jobs stored & status\n"
+            "📊 <b>/status</b> — System health & total jobs stored\n"
             "🔍 <b>/scrape_now</b> — Trigger an immediate on-demand scrape\n\n"
-            "<b>🎯 Keywords Management:</b>\n"
-            "➕ <b>/addkeyword &lt;keyword&gt;</b> — Add search keyword (e.g. <code>/addkeyword Receptionist</code>)\n"
-            "➖ <b>/removekeyword &lt;keyword&gt;</b> — Remove search keyword\n"
+            "<b>📡 Telegram Channels (Bulk Supported):</b>\n"
+            "➕ <b>/addchannel @ch1 @ch2 @ch3</b> — Add multiple channels at once\n"
+            "➖ <b>/removechannel @ch1 @ch2</b> — Remove channels\n"
+            "📋 <b>/listchannels</b> — List all monitored channels\n\n"
+            "<b>🎯 Keywords Management (Bulk Supported):</b>\n"
+            "➕ <b>/addkeyword word1, word2, word3</b> — Add multiple keywords\n"
+            "➖ <b>/removekeyword word1, word2</b> — Remove keywords\n"
             "📋 <b>/listkeywords</b> — View all active keywords\n\n"
-            "<b>📡 Telegram Channels Management:</b>\n"
-            "➕ <b>/addchannel &lt;@channel&gt;</b> — Add a Telegram channel to scrape (e.g. <code>/addchannel @harmeejobs</code>)\n"
-            "➖ <b>/removechannel &lt;@channel&gt;</b> — Remove a Telegram channel\n"
-            "📋 <b>/listchannels</b> — List all monitored Telegram channels\n\n"
             "<b>⚙️ Controls:</b>\n"
             "⏸️ <b>/pause</b> — Pause automatic alerts\n"
             "▶️ <b>/resume</b> — Resume automatic alerts\n"
@@ -99,38 +100,54 @@ class TelegramCommandHandler:
             await update.effective_message.reply_html(status_text)
 
     async def add_keyword_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handles /addkeyword <word> command."""
+        """Handles /addkeyword word1, word2, word3 command."""
         if not context.args:
             if update.effective_message:
                 await update.effective_message.reply_text(
-                    "⚠️ Please specify a keyword to add.\nExample: /addkeyword IT Officer"
+                    "⚠️ Please specify one or more keywords (comma-separated).\nExample: /addkeyword IT Officer, Receptionist, Accountant"
                 )
             return
 
-        kw = " ".join(context.args).strip()
-        success, msg = self.keyword_store.add_keyword(kw, kind="include")
+        raw_kw = " ".join(context.args)
+        added, skipped = self.keyword_store.add_multiple_keywords(raw_kw, kind="include")
         if self.pipeline and hasattr(self.pipeline, "filter_engine"):
             self.pipeline.filter_engine.reload()
 
+        msg = ""
+        if added:
+            msg += f"✅ Added {len(added)} keyword(s):\n" + "\n".join([f"• {k}" for k in added])
+        if skipped:
+            if msg:
+                msg += "\n\n"
+            msg += f"⚠️ Already existed: {', '.join(skipped)}"
+
         if update.effective_message:
-            await update.effective_message.reply_text(msg)
+            await update.effective_message.reply_text(msg or "⚠️ No valid keywords provided.")
 
     async def remove_keyword_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handles /removekeyword <word> command."""
+        """Handles /removekeyword word1, word2 command."""
         if not context.args:
             if update.effective_message:
                 await update.effective_message.reply_text(
-                    "⚠️ Please specify a keyword to remove.\nExample: /removekeyword IT Officer"
+                    "⚠️ Please specify one or more keywords to remove.\nExample: /removekeyword IT Officer, Receptionist"
                 )
             return
 
-        kw = " ".join(context.args).strip()
-        success, msg = self.keyword_store.remove_keyword(kw)
+        raw_kw = " ".join(context.args)
+        removed, not_found = self.keyword_store.remove_multiple_keywords(raw_kw)
         if self.pipeline and hasattr(self.pipeline, "filter_engine"):
             self.pipeline.filter_engine.reload()
 
+        msg = ""
+        if removed:
+            msg += f"✅ Removed {len(removed)} keyword(s):\n" + "\n".join([f"• {k}" for k in removed])
+        if not_found:
+            if msg:
+                msg += "\n\n"
+            msg += f"⚠️ Not found in dynamic list: {', '.join(not_found)}"
+
         if update.effective_message:
-            await update.effective_message.reply_text(msg)
+            await update.effective_message.reply_text(msg or "⚠️ No valid keywords provided.")
 
     async def list_keywords_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handles /listkeywords command."""
@@ -151,32 +168,50 @@ class TelegramCommandHandler:
             await update.effective_message.reply_html(text)
 
     async def add_channel_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handles /addchannel <@channel> command."""
+        """Handles /addchannel @ch1 @ch2 @ch3 bulk command."""
         if not context.args:
             if update.effective_message:
                 await update.effective_message.reply_text(
-                    "⚠️ Please specify a Telegram channel username to add.\nExample: /addchannel @harmeejobs"
+                    "⚠️ Please specify one or more Telegram channels (separated by space or comma).\nExample: /addchannel @harmeejobs @effoi_jobs @elelanajobs"
                 )
             return
 
-        ch = context.args[0].strip()
-        success, msg = self.channel_store.add_channel(ch)
+        raw_input = " ".join(context.args)
+        added, skipped = self.channel_store.add_multiple_channels(raw_input)
+
+        msg = ""
+        if added:
+            msg += f"✅ Successfully added {len(added)} channel(s) to monitor:\n" + "\n".join([f"• {c}" for c in added])
+        if skipped:
+            if msg:
+                msg += "\n\n"
+            msg += f"⚠️ Already being monitored: {', '.join(skipped)}"
+
         if update.effective_message:
-            await update.effective_message.reply_text(msg)
+            await update.effective_message.reply_text(msg or "⚠️ No valid channel handles provided.")
 
     async def remove_channel_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handles /removechannel <@channel> command."""
+        """Handles /removechannel @ch1 @ch2 command."""
         if not context.args:
             if update.effective_message:
                 await update.effective_message.reply_text(
-                    "⚠️ Please specify a Telegram channel username to remove.\nExample: /removechannel @harmeejobs"
+                    "⚠️ Please specify one or more Telegram channels to remove.\nExample: /removechannel @harmeejobs @effoi_jobs"
                 )
             return
 
-        ch = context.args[0].strip()
-        success, msg = self.channel_store.remove_channel(ch)
+        raw_input = " ".join(context.args)
+        removed, not_found = self.channel_store.remove_multiple_channels(raw_input)
+
+        msg = ""
+        if removed:
+            msg += f"✅ Removed {len(removed)} channel(s):\n" + "\n".join([f"• {c}" for c in removed])
+        if not_found:
+            if msg:
+                msg += "\n\n"
+            msg += f"⚠️ Not found in custom channels: {', '.join(not_found)}"
+
         if update.effective_message:
-            await update.effective_message.reply_text(msg)
+            await update.effective_message.reply_text(msg or "⚠️ No valid channel handles provided.")
 
     async def list_channels_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handles /listchannels command."""
@@ -196,7 +231,7 @@ class TelegramCommandHandler:
         text = (
             f"📡 <b>Monitored Telegram Channels ({len(all_ch)})</b>\n\n"
             f"{ch_items}\n\n"
-            f"<i>You can add new channels anytime with <code>/addchannel @channel_name</code></i>"
+            f"<i>Add multiple channels anytime: <code>/addchannel @ch1 @ch2 @ch3</code></i>"
         )
         if update.effective_message:
             await update.effective_message.reply_html(text)
@@ -229,7 +264,7 @@ class TelegramCommandHandler:
                 f"✅ <b>Scrape Complete!</b>\n\n"
                 f"• Raw Fetched: <code>{metrics.get('raw_fetched', 0)}</code>\n"
                 f"• New Unique: <code>{metrics.get('unique_saved', 0)}</code>\n"
-                f"• Matched Criteria (Active & Valid Deadline): <code>{metrics.get('matched', 0)}</code>\n"
+                f"• Matched Criteria (Valid Deadline): <code>{metrics.get('matched', 0)}</code>\n"
                 f"• Telegram Alerts Sent: <code>{metrics.get('notified', 0)}</code>"
             )
             if update.effective_message:

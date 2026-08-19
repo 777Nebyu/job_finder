@@ -1,9 +1,11 @@
 """
 Dynamic Keyword Store for Telegram Bot Commands.
 Persists user-added keywords in SQLite so they survive restarts.
+Supports bulk add and remove.
 """
 
 from datetime import datetime, timezone
+import re
 from typing import List, Tuple
 from src.storage.database import DatabaseManager
 from src.utils.logger import setup_logger
@@ -34,7 +36,7 @@ class DynamicKeywordStore:
 
     def add_keyword(self, keyword: str, kind: str = "include") -> Tuple[bool, str]:
         """Add a dynamic keyword. Returns (success, message)."""
-        kw = keyword.strip()
+        kw = keyword.strip().strip(",")
         if not kw:
             return False, "Keyword cannot be empty."
 
@@ -54,9 +56,28 @@ class DynamicKeywordStore:
             logger.error(f"Error adding keyword '{kw}': {e}")
             return False, f"❌ Error saving keyword: {e}"
 
+    def add_multiple_keywords(self, raw_input: str, kind: str = "include") -> Tuple[List[str], List[str]]:
+        """
+        Parses and adds multiple keywords separated by commas or newlines.
+        Returns (added_keywords, skipped_keywords).
+        """
+        # Split by comma or newline
+        tokens = [t.strip() for t in re.split(r"[,;\n]+", raw_input) if t.strip()]
+        added = []
+        skipped = []
+
+        for token in tokens:
+            ok, _ = self.add_keyword(token, kind=kind)
+            if ok:
+                added.append(token)
+            else:
+                skipped.append(token)
+
+        return added, skipped
+
     def remove_keyword(self, keyword: str) -> Tuple[bool, str]:
         """Remove a dynamic keyword. Returns (success, message)."""
-        kw = keyword.strip()
+        kw = keyword.strip().strip(",")
         with self.db_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM dynamic_keywords WHERE LOWER(keyword) = LOWER(?);", (kw,))
@@ -67,6 +88,24 @@ class DynamicKeywordStore:
             logger.info(f"Removed dynamic keyword: '{kw}'")
             return True, f"✅ Removed keyword: '{kw}'"
         return False, f"⚠️ Keyword '{kw}' was not found in dynamic keywords."
+
+    def remove_multiple_keywords(self, raw_input: str) -> Tuple[List[str], List[str]]:
+        """
+        Parses and removes multiple keywords.
+        Returns (removed_keywords, not_found_keywords).
+        """
+        tokens = [t.strip() for t in re.split(r"[,;\n]+", raw_input) if t.strip()]
+        removed = []
+        not_found = []
+
+        for token in tokens:
+            ok, _ = self.remove_keyword(token)
+            if ok:
+                removed.append(token)
+            else:
+                not_found.append(token)
+
+        return removed, not_found
 
     def get_all_dynamic_keywords(self, kind: str = "include") -> List[str]:
         """Retrieve all stored dynamic keywords of a given kind."""
