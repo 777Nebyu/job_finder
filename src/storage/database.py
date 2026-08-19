@@ -25,12 +25,6 @@ CREATE TABLE IF NOT EXISTS jobs (
     first_seen TEXT NOT NULL,
     notified INTEGER NOT NULL DEFAULT 0
 );
-
-CREATE INDEX IF NOT EXISTS idx_jobs_dedupe_hash ON jobs (dedupe_hash);
-CREATE INDEX IF NOT EXISTS idx_jobs_source ON jobs (source);
-CREATE INDEX IF NOT EXISTS idx_jobs_first_seen ON jobs (first_seen);
-CREATE INDEX IF NOT EXISTS idx_jobs_deadline ON jobs (deadline);
-CREATE INDEX IF NOT EXISTS idx_jobs_notified ON jobs (notified);
 """
 
 
@@ -50,16 +44,25 @@ class DatabaseManager:
         return conn
 
     def _init_db(self) -> None:
-        """Initializes database schema, columns, and indices."""
+        """Initializes database schema, columns, and indices with safe auto-migration."""
         try:
             with self.get_connection() as conn:
-                conn.executescript(CREATE_TABLES_SQL)
-                # Auto-migrate: check if deadline column exists
+                # 1. Create table if not exists
+                conn.execute(CREATE_TABLES_SQL)
+
+                # 2. Check and migrate columns
                 cursor = conn.cursor()
                 cursor.execute("PRAGMA table_info(jobs);")
                 columns = [col["name"] for col in cursor.fetchall()]
                 if "deadline" not in columns:
                     conn.execute("ALTER TABLE jobs ADD COLUMN deadline TEXT;")
+
+                # 3. Create indices
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_dedupe_hash ON jobs (dedupe_hash);")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_source ON jobs (source);")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_first_seen ON jobs (first_seen);")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_deadline ON jobs (deadline);")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_notified ON jobs (notified);")
                 conn.commit()
             logger.debug(f"Database initialized at {self.db_path}")
         except Exception as e:

@@ -4,7 +4,7 @@
 
 bot:
   telegram_token: "8680554660:AAEywFEIzVJ9cY9kmpThQlpxCLxoiHNcadg"
-  chat_id: "-5412714799"
+  chat_id: "-1004382562165" # Updated Supergroup Chat ID for 'Job filter'
   mode: "telegram" # options: telegram, console, both
   rate_limit_per_second: 1.0 # Pause between messages to prevent Telegram 429 errors
   enabled: true

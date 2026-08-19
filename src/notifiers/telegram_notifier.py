@@ -1,6 +1,7 @@
 """
 Telegram Notifier (FR-8 & FR-13).
-Sends job alert messages via Telegram Bot API with connection verification and rate limiting.
+Sends job alert messages via Telegram Bot API with connection verification,
+rate limiting, and automatic supergroup chat ID migration.
 """
 
 import time
@@ -28,7 +29,7 @@ class TelegramNotifier(BaseNotifier):
     def verify_connection(self) -> bool:
         """
         FR-13: Verifies Telegram Bot token and target chat connectivity on startup.
-        Logs clear, actionable errors if credentials or permissions are invalid.
+        Handles supergroup chat migration automatically.
         """
         if not self.token or not self.chat_id:
             logger.error("Telegram verification failed: Token or Chat ID is missing.")
@@ -49,14 +50,23 @@ class TelegramNotifier(BaseNotifier):
                 json={"chat_id": self.chat_id},
                 timeout=10,
             )
-            if chat_resp.status_code != 200:
+            data = chat_resp.json()
+
+            if not data.get("ok"):
+                # Check for supergroup migration parameter
+                params = data.get("parameters", {})
+                if "migrate_to_chat_id" in params:
+                    new_id = str(params["migrate_to_chat_id"])
+                    logger.info(f"Telegram group migrated to Supergroup ID: {new_id}. Updating chat_id.")
+                    self.chat_id = new_id
+                    return True
+
                 logger.error(
-                    f"Target Chat ID [{self.chat_id}] could not be reached: HTTP {chat_resp.status_code} - {chat_resp.text}. "
-                    f"Ensure the bot has been added to the target group/channel and has message permissions."
+                    f"Target Chat ID [{self.chat_id}] error: HTTP {chat_resp.status_code} - {chat_resp.text}."
                 )
                 return False
 
-            chat_info = chat_resp.json().get("result", {})
+            chat_info = data.get("result", {})
             title = chat_info.get("title") or chat_info.get("username") or self.chat_id
             logger.info(f"Target Chat verified: '{title}' (ID: {self.chat_id})")
             return True
@@ -68,6 +78,7 @@ class TelegramNotifier(BaseNotifier):
     def send_notification(self, job: JobPosting) -> bool:
         """
         FR-8: Formats and sends a single job posting to the configured Telegram chat.
+        Automatically handles and retries if group migrated to supergroup.
         """
         if not self.config.enabled:
             logger.debug("Telegram notifier is disabled. Skipping.")
@@ -87,10 +98,23 @@ class TelegramNotifier(BaseNotifier):
                 json=payload,
                 timeout=15,
             )
+            data = response.json()
 
-            if response.status_code == 200:
+            # Handle supergroup migration automatically
+            if not data.get("ok") and "migrate_to_chat_id" in data.get("parameters", {}):
+                new_id = str(data["parameters"]["migrate_to_chat_id"])
+                logger.info(f"Auto-migrating Telegram chat_id to {new_id} and retrying...")
+                self.chat_id = new_id
+                payload["chat_id"] = new_id
+                response = requests.post(
+                    f"{self.base_url}/sendMessage",
+                    json=payload,
+                    timeout=15,
+                )
+                data = response.json()
+
+            if response.status_code == 200 and data.get("ok"):
                 logger.info(f"Telegram alert sent for: [{job.title} @ {job.company}]")
-                # Rate limit pacing
                 if self.rate_limit_pause > 0:
                     time.sleep(self.rate_limit_pause)
                 return True
