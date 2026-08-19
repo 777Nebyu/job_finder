@@ -3,12 +3,13 @@ title: Job Alert Bot 24/7
 emoji: 🔔
 colorFrom: blue
 colorTo: purple
-sdk: docker
-app_port: 7860
+sdk: gradio
+sdk_version: 6.24.0
+app_file: app.py
 pinned: false
 ---
 
-# 🔔 Job Alert Bot (Tier 1 + Telegram Commands & Public Channel Scrapers)
+# 🔔 Job Alert Bot (Tier 1 + Telegram Commands & Gradio Dashboard)
 
 A modular, multi-source job scraping and alert engine designed to monitor job boards (Ethiojobs, Telegram Channels, RemoteOK, Jobicy, Afriwork, Josad), deduplicate listings with SHA-256 and fuzzy matching, filter by customizable inclusion/exclusion rules, and send formatted alert cards directly to Telegram.
 
@@ -35,9 +36,9 @@ A modular, multi-source job scraping and alert engine designed to monitor job bo
    - `/pause` & `/resume` — Temporarily pause or resume alerts.
    - `/help` — View command manual.
 
-4. **100% Free 24/7 Cloud Deployment on Hugging Face Spaces:**
-   - Pre-configured Docker Space with Port 7860 web status dashboard.
-   - Runs 24/7 without sleeping for **$0/month**.
+4. **100% Free 24/7 Cloud Deployment on Hugging Face Spaces (Gradio SDK):**
+   - Built-in Gradio web dashboard (`app.py`).
+   - Runs 24/7 on Free CPU basic (2 vCPU · 16 GB RAM) with **$0 cost & NO credit card required**.
 
 ---
 
@@ -56,11 +57,14 @@ Edit `config/config.yaml` to set your:
 
 ### 3. Run Commands
 ```bash
+# Run Gradio Web Dashboard + 24/7 Background Bot:
+python app.py
+
+# Or run CLI daemon:
+python main.py daemon
+
 # Run a single scrape & notify cycle:
 python main.py run
-
-# Start 24/7 background scheduler & interactive Telegram bot:
-python main.py daemon
 
 # Run pre-flight diagnostics:
 python main.py check
@@ -68,15 +72,12 @@ python main.py check
 # Test a specific scraper (e.g., telegram_channels, ethiojobs):
 python main.py test-source telegram_channels
 
-# View database statistics:
-python main.py stats
-
 # Run full automated test suite:
 pytest
 ```
 
 ---
 
-## ☁️ Hugging Face Spaces Deployment
+## ☁️ Hugging Face Spaces Free Deployment Guide
 
-See **[DEPLOYMENT.md](DEPLOYMENT.md)** for the complete step-by-step visual guide.
+See **[DEPLOYMENT.md](DEPLOYMENT.md)** for the complete step-by-step guide.
