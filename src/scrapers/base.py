@@ -24,6 +24,7 @@ class BaseScraper(ABC):
         client: Optional[ResilientHttpClient] = None,
         enabled: bool = True,
         rate_limit_delay: float = 1.5,
+        **kwargs,
     ):
         self.client = client or ResilientHttpClient(rate_limit_delay=rate_limit_delay)
         self.enabled = enabled
