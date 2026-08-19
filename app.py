@@ -3,6 +3,7 @@ Job Alert Bot — Gradio Web App & 24/7 Engine for Hugging Face Spaces.
 Runs the background scraper scheduler, Telegram bot polling, and a live web dashboard.
 """
 
+import asyncio
 from datetime import datetime, timezone
 import threading
 import time
@@ -49,14 +50,23 @@ scheduler.start()
 
 
 def run_telegram_polling():
-    """Runs Telegram bot polling in a dedicated background thread."""
-    if config.bot.telegram_token:
-        try:
-            logger.info("Starting Telegram Bot command listener in background thread...")
-            app = command_handler.create_application()
-            app.run_polling(drop_pending_updates=True)
-        except Exception as e:
-            logger.error(f"Telegram polling thread error: {e}")
+    """Runs Telegram bot polling in a dedicated background thread with custom event loop."""
+    if not config.bot.telegram_token:
+        return
+
+    try:
+        logger.info("Starting Telegram Bot command listener in background thread...")
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        app = command_handler.create_application()
+        # stop_signals=None is required when running in a background thread
+        app.run_polling(
+            stop_signals=None,
+            drop_pending_updates=True,
+            close_loop=False,
+        )
+    except Exception as e:
+        logger.error(f"Telegram polling thread error: {e}", exc_info=True)
 
 
 tg_thread = threading.Thread(target=run_telegram_polling, daemon=True)
@@ -72,10 +82,10 @@ def get_dashboard_stats():
     dyn_kw = len(keyword_store.get_all_dynamic_keywords("include"))
     total_kw = len(config.filters.include_keywords) + dyn_kw
     return (
-        f"🟢 Running 24/7",
-        f"{total_jobs}",
-        f"{total_kw}",
-        f"{uptime}",
+        "🟢 Running 24/7",
+        str(total_jobs),
+        str(total_kw),
+        uptime,
     )
 
 
@@ -141,7 +151,7 @@ def get_keywords_text():
 # ------------------------------------------------------------------------------
 # 3. Gradio Interface Construction
 # ------------------------------------------------------------------------------
-with gr.Blocks(title="Job Alert Bot 24/7", theme=gr.themes.Soft(primary_hue="blue")) as demo:
+with gr.Blocks(title="Job Alert Bot 24/7") as demo:
     gr.Markdown("# 🔔 Job Alert Bot — 24/7 Control Center")
     gr.Markdown("Automated multi-source scraper, deduplicator, and Telegram alert engine running continuously.")
 
@@ -196,7 +206,6 @@ with gr.Blocks(title="Job Alert Bot 24/7", theme=gr.themes.Soft(primary_hue="blu
             * `/pause` & `/resume` — Control notifications.
             """)
 
-    # Refresh metrics periodically
     demo.load(get_dashboard_stats, outputs=[status_box, total_jobs_box, keywords_count_box, uptime_box])
 
 if __name__ == "__main__":
