@@ -49,6 +49,7 @@ class SourceConfig(BaseModel):
     max_pages: Optional[int] = 3
     max_jobs: Optional[int] = 50
     count: Optional[int] = 30
+    channels: Optional[List[str]] = None
     custom_headers: Optional[dict] = None
 
 

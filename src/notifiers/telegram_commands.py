@@ -244,6 +244,11 @@ class TelegramCommandHandler:
 
     async def list_channels_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handles /listchannels command."""
+        cfg_channels = []
+        src_cfg = self.config.get_source_config("telegram_channels")
+        if src_cfg.channels:
+            cfg_channels = src_cfg.channels
+
         defaults = [
             "freelance_ethio",
             "Ethiojobsofficial",
@@ -251,9 +256,13 @@ class TelegramCommandHandler:
             "shegerjobs",
             "harmeejobs",
             "effoi_jobs",
+            "elelanajobs",
+            "qefirajobs",
+            "asham_jobs",
+            "tikvahjobs",
         ]
         dyn = self.channel_store.get_all_dynamic_channels()
-        all_ch = list(dict.fromkeys(defaults + dyn))
+        all_ch = list(dict.fromkeys(cfg_channels + defaults + dyn))
 
         ch_items = "\n".join([f"  • @{html.escape(c)}" for c in all_ch])
 

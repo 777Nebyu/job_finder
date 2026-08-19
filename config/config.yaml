@@ -4,7 +4,7 @@
 
 bot:
   telegram_token: "8680554660:AAEywFEIzVJ9cY9kmpThQlpxCLxoiHNcadg"
-  chat_id: "-1004382562165" # Updated Supergroup Chat ID for 'Job filter'
+  chat_id: "-1004382562165" # Supergroup Chat ID for 'Job filter'
   mode: "telegram" # options: telegram, console, both
   rate_limit_per_second: 1.0 # Pause between messages to prevent Telegram 429 errors
   enabled: true
@@ -60,6 +60,17 @@ scrapers:
     telegram_channels:
       enabled: true
       max_posts_per_channel: 30
+      channels:
+        - "freelance_ethio"
+        - "Ethiojobsofficial"
+        - "hahujobs"
+        - "shegerjobs"
+        - "harmeejobs"
+        - "effoi_jobs"
+        - "elelanajobs"
+        - "qefirajobs"
+        - "asham_jobs"
+        - "tikvahjobs"
     afriwork:
       enabled: true
       url: "https://afriworket.com/jobs"

@@ -212,6 +212,11 @@ def remove_channel_ui(ch: str):
 
 
 def get_channels_text():
+    cfg_channels = []
+    src_cfg = config.get_source_config("telegram_channels")
+    if src_cfg.channels:
+        cfg_channels = src_cfg.channels
+
     defaults = [
         "freelance_ethio",
         "Ethiojobsofficial",
@@ -219,9 +224,13 @@ def get_channels_text():
         "shegerjobs",
         "harmeejobs",
         "effoi_jobs",
+        "elelanajobs",
+        "qefirajobs",
+        "asham_jobs",
+        "tikvahjobs",
     ]
     dyn = channel_store.get_all_dynamic_channels()
-    all_ch = list(dict.fromkeys(defaults + dyn))
+    all_ch = list(dict.fromkeys(cfg_channels + defaults + dyn))
     lines = [f"• @{c}" for c in all_ch]
     return "\n".join(lines)
 

@@ -70,6 +70,8 @@ class JobAlertPipeline:
                     }
                     if name == "telegram_channels":
                         kwargs["channel_store"] = self.channel_store
+                        if src_cfg.channels:
+                            kwargs["channels"] = src_cfg.channels
                     if src_cfg.url:
                         kwargs["base_url"] = src_cfg.url
                     if src_cfg.max_pages and name == "ethiojobs":
