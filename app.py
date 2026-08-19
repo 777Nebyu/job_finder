@@ -5,6 +5,7 @@ Runs the background scraper scheduler, Telegram bot polling, and a live web dash
 
 import asyncio
 from datetime import datetime, timezone
+import inspect
 import threading
 import time
 import gradio as gr
@@ -50,7 +51,7 @@ scheduler.start()
 
 
 def run_telegram_polling():
-    """Runs Telegram bot polling in a dedicated background thread with custom event loop."""
+    """Runs Telegram bot polling in a dedicated background thread with its own event loop."""
     if not config.bot.telegram_token:
         return
 
@@ -59,7 +60,6 @@ def run_telegram_polling():
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         app = command_handler.create_application()
-        # stop_signals=None is required when running in a background thread
         app.run_polling(
             stop_signals=None,
             drop_pending_updates=True,
@@ -209,4 +209,11 @@ with gr.Blocks(title="Job Alert Bot 24/7") as demo:
     demo.load(get_dashboard_stats, outputs=[status_box, total_jobs_box, keywords_count_box, uptime_box])
 
 if __name__ == "__main__":
-    demo.launch(server_name="0.0.0.0", server_port=7860)
+    launch_kwargs = {
+        "server_name": "0.0.0.0",
+        "server_port": 7860,
+    }
+    if "ssr_mode" in inspect.signature(demo.launch).parameters:
+        launch_kwargs["ssr_mode"] = False
+
+    demo.launch(**launch_kwargs)
