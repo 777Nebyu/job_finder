@@ -1,6 +1,7 @@
 """
 Dynamic Channel Store for Telegram Channel Scraper.
 Allows adding and removing multiple Telegram job channels dynamically.
+Guarantees zero duplicate scraping.
 """
 
 from datetime import datetime, timezone
@@ -19,9 +20,18 @@ CREATE TABLE IF NOT EXISTS dynamic_channels (
 );
 """
 
+DEFAULT_MONITORED_CHANNELS = [
+    "freelance_ethio",
+    "ethiojobsofficial",
+    "hahujobs",
+    "shegerjobs",
+    "harmeejobs",
+    "effoi_jobs",
+]
+
 
 class DynamicChannelStore:
-    """Manages persistent dynamic Telegram channels stored in SQLite."""
+    """Manages persistent dynamic Telegram channels stored in SQLite with strict deduplication."""
 
     def __init__(self, db_manager: DatabaseManager):
         self.db_manager = db_manager
@@ -38,7 +48,6 @@ class DynamicChannelStore:
         ch = channel.strip()
         ch = re.sub(r"^https?://t\.me/(?:s/)?", "", ch)
         ch = ch.lstrip("@").strip().rstrip("/")
-        # Remove any trailing commas or spaces
         ch = ch.strip(", ")
         return ch
 
@@ -47,6 +56,10 @@ class DynamicChannelStore:
         clean_ch = self.clean_channel_name(channel)
         if not clean_ch:
             return False, "⚠️ Invalid channel name."
+
+        # Check against default channels
+        if clean_ch.lower() in [c.lower() for c in DEFAULT_MONITORED_CHANNELS]:
+            return False, f"⚠️ Channel @{clean_ch} is already in the default monitored list."
 
         now_str = datetime.now(timezone.utc).isoformat()
         try:
@@ -69,7 +82,6 @@ class DynamicChannelStore:
         Parses and adds multiple channels separated by spaces, commas, or newlines.
         Returns (added_channels, skipped_or_existing_channels).
         """
-        # Split by comma, space, or newline
         tokens = re.split(r"[\s,\n]+", raw_input.strip())
         added = []
         skipped = []
