@@ -10,6 +10,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from config.settings import AppConfig
 from src.notifiers.telegram_commands import TelegramCommandHandler
 from src.orchestrator.pipeline import JobAlertPipeline
+from src.server.web_status import run_status_server
 from src.utils.logger import setup_logger
 
 logger = setup_logger("scheduler")
@@ -39,10 +40,16 @@ class PipelineScheduler:
             logger.error(f"Error during scheduled pipeline run: {e}", exc_info=True)
 
     def start(self) -> None:
-        """Starts the scheduler and Telegram bot polling 24/7."""
+        """Starts the scheduler, status web server, and Telegram bot polling 24/7."""
         logger.info("Initializing Job Alert Bot 24/7 Service...")
 
-        # 1. Verify system pre-flight
+        # 1. Start Hugging Face Status Dashboard (Port 7860)
+        try:
+            run_status_server(self.config, port=7860)
+        except Exception as e:
+            logger.warning(f"Could not start status web server on port 7860: {e}")
+
+        # 2. Verify system pre-flight
         if not self.pipeline.verify_system():
             logger.warning("One or more system pre-flight checks failed. Check configuration.")
 

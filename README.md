@@ -1,10 +1,20 @@
-# Job Alert Bot (Tier 1 + Interactive Commands & Scrapers)
+---
+title: Job Alert Bot 24/7
+emoji: 🔔
+colorFrom: blue
+colorTo: purple
+sdk: docker
+app_port: 7860
+pinned: false
+---
 
-A modular, multi-source job scraping and alert pipeline designed to monitor job boards (Ethiojobs, Telegram Channels, RemoteOK, Jobicy, Afriwork, Josad), deduplicate listings, filter by customizable inclusion/exclusion rules, and send formatted alert cards directly to Telegram channels, groups, or private chats.
+# 🔔 Job Alert Bot (Tier 1 + Telegram Commands & Public Channel Scrapers)
+
+A modular, multi-source job scraping and alert engine designed to monitor job boards (Ethiojobs, Telegram Channels, RemoteOK, Jobicy, Afriwork, Josad), deduplicate listings with SHA-256 and fuzzy matching, filter by customizable inclusion/exclusion rules, and send formatted alert cards directly to Telegram.
 
 ---
 
-## 🌟 Key Features
+## 🌟 Features
 
 1. **Multi-Source Scraping Engine:**
    - **Ethiojobs.net:** Server-rendered Next.js pagination parser.
@@ -25,29 +35,9 @@ A modular, multi-source job scraping and alert pipeline designed to monitor job 
    - `/pause` & `/resume` — Temporarily pause or resume alerts.
    - `/help` — View command manual.
 
-4. **100% Free 24/7 Cloud Deployment:**
-   - Dockerized with non-root security and persistent SQLite storage.
-   - 1-click free deployment on **Koyeb**, **Render**, or **Hugging Face Spaces**.
-
----
-
-## 📌 Architecture
-
-```
-[ Scrapers (Module 1) ] 
-       │ (Ethiojobs, Telegram Channels, RemoteOK, Jobicy)
-       ▼
-[ Normalization (Module 2) ] (HTML Stripping, Universal Date Parser)
-       │
-       ▼
-[ Deduplication & Storage (Module 3) ] (SHA-256 + RapidFuzz + SQLite)
-       │
-       ▼
-[ Filter Engine (Module 4) ] (Dynamic & Static Keyword Rules)
-       │
-       ▼
-[ Telegram Bot (Module 5) ] (HTML Alert Cards + Interactive Commands)
-```
+4. **100% Free 24/7 Cloud Deployment on Hugging Face Spaces:**
+   - Pre-configured Docker Space with Port 7860 web status dashboard.
+   - Runs 24/7 without sleeping for **$0/month**.
 
 ---
 
@@ -87,10 +77,6 @@ pytest
 
 ---
 
-## ☁️ 24/7 Free Cloud Deployment
+## ☁️ Hugging Face Spaces Deployment
 
-See **[DEPLOYMENT.md](DEPLOYMENT.md)** for step-by-step instructions to deploy on:
-- **Koyeb** (100% Free 24/7 Eco Instance)
-- **Render.com** (Free Web/Worker Service)
-- **Hugging Face Spaces** (Free Docker Container 24/7)
-- **Docker Compose & Linux Systemd**
+See **[DEPLOYMENT.md](DEPLOYMENT.md)** for the complete step-by-step visual guide.
