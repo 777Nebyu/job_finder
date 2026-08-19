@@ -4,7 +4,6 @@ SQLite Database Connection and Schema Management (FR-5).
 
 import sqlite3
 from pathlib import Path
-from typing import Optional
 from src.utils.logger import setup_logger
 
 logger = setup_logger("database")
@@ -19,6 +18,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     remote_flag INTEGER NOT NULL DEFAULT 0,
     url TEXT NOT NULL,
     posted_date TEXT,
+    deadline TEXT,
     description TEXT,
     tags TEXT,
     dedupe_hash TEXT NOT NULL UNIQUE,
@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS jobs (
 CREATE INDEX IF NOT EXISTS idx_jobs_dedupe_hash ON jobs (dedupe_hash);
 CREATE INDEX IF NOT EXISTS idx_jobs_source ON jobs (source);
 CREATE INDEX IF NOT EXISTS idx_jobs_first_seen ON jobs (first_seen);
+CREATE INDEX IF NOT EXISTS idx_jobs_deadline ON jobs (deadline);
 CREATE INDEX IF NOT EXISTS idx_jobs_notified ON jobs (notified);
 """
 
@@ -45,14 +46,20 @@ class DatabaseManager:
         """Returns a configured SQLite connection with row factory."""
         conn = sqlite3.connect(str(self.db_path))
         conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA journal_mode=WAL;")  # Better concurrency and durability
+        conn.execute("PRAGMA journal_mode=WAL;")
         return conn
 
     def _init_db(self) -> None:
-        """Initializes database schema and indices."""
+        """Initializes database schema, columns, and indices."""
         try:
             with self.get_connection() as conn:
                 conn.executescript(CREATE_TABLES_SQL)
+                # Auto-migrate: check if deadline column exists
+                cursor = conn.cursor()
+                cursor.execute("PRAGMA table_info(jobs);")
+                columns = [col["name"] for col in cursor.fetchall()]
+                if "deadline" not in columns:
+                    conn.execute("ALTER TABLE jobs ADD COLUMN deadline TEXT;")
                 conn.commit()
             logger.debug(f"Database initialized at {self.db_path}")
         except Exception as e:

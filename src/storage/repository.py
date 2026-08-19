@@ -26,14 +26,15 @@ class JobRepository:
         insert_sql = """
         INSERT INTO jobs (
             source, title, company, location, remote_flag, url,
-            posted_date, description, tags, dedupe_hash, first_seen, notified
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            posted_date, deadline, description, tags, dedupe_hash, first_seen, notified
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(dedupe_hash) DO NOTHING
         RETURNING id;
         """
 
         tags_json = json.dumps(job.tags)
         posted_date_str = job.posted_date.isoformat() if job.posted_date else None
+        deadline_str = job.deadline.isoformat() if job.deadline else None
         first_seen_str = job.first_seen.isoformat()
 
         with self.db_manager.get_connection() as conn:
@@ -48,6 +49,7 @@ class JobRepository:
                     1 if job.remote_flag else 0,
                     job.url,
                     posted_date_str,
+                    deadline_str,
                     job.description,
                     tags_json,
                     job.dedupe_hash,
@@ -112,6 +114,13 @@ class JobRepository:
             except Exception:
                 pass
 
+        deadline = None
+        try:
+            if "deadline" in row.keys() and row["deadline"]:
+                deadline = date.fromisoformat(row["deadline"])
+        except Exception:
+            pass
+
         first_seen = datetime.now(timezone.utc)
         if row["first_seen"]:
             try:
@@ -128,6 +137,7 @@ class JobRepository:
             remote_flag=bool(row["remote_flag"]),
             url=row["url"],
             posted_date=posted_date,
+            deadline=deadline,
             description=row["description"] or "",
             tags=tags,
             dedupe_hash=row["dedupe_hash"],

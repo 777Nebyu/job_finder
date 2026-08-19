@@ -9,7 +9,7 @@ from typing import List, Optional
 from bs4 import BeautifulSoup
 from src.models.canonical_job import JobPosting
 from src.models.raw_job import RawJobPosting
-from src.normalizers.date_parser import parse_job_date
+from src.normalizers.date_parser import parse_deadline, parse_job_date
 from src.utils.logger import setup_logger
 
 logger = setup_logger("normalizer")
@@ -18,7 +18,7 @@ logger = setup_logger("normalizer")
 class JobNormalizer:
     """
     Transforms raw scraped job data into canonical JobPosting schema.
-    Applies text cleaning, HTML stripping, date normalization, and remote detection.
+    Applies text cleaning, HTML stripping, date and deadline normalization, and remote detection.
     """
 
     REMOTE_KEYWORDS = [
@@ -37,17 +37,14 @@ class JobNormalizer:
         if not text:
             return ""
 
-        # Decode HTML entities
         unescaped = html.unescape(text)
 
-        # Remove HTML tags if present
         if "<" in unescaped and ">" in unescaped:
             soup = BeautifulSoup(unescaped, "html.parser")
             cleaned = soup.get_text(separator=" ")
         else:
             cleaned = unescaped
 
-        # Collapse whitespace
         cleaned = re.sub(r"\s+", " ", cleaned).strip()
         return cleaned
 
@@ -55,7 +52,6 @@ class JobNormalizer:
     def clean_title(cls, title: str) -> str:
         """Sanitizes job title."""
         title = cls.clean_text(title)
-        # Remove trailing dash/separator artifacts
         title = re.sub(r"[\s\-\|]+$", "", title).strip()
         return title
 
@@ -81,6 +77,14 @@ class JobNormalizer:
         return any(kw in search_corpus for kw in cls.REMOTE_KEYWORDS)
 
     @classmethod
+    def extract_deadline_from_text(cls, text: str) -> Optional[str]:
+        """Extracts raw deadline string from job description or text."""
+        m_dl = re.search(r"(?:Deadline|Closing\s*Date|Apply\s*Before|Expires)\s*:\s*([^\n<,]+(?:\s*,\s*\d{4})?)", text, re.I)
+        if m_dl:
+            return m_dl.group(1).strip()
+        return None
+
+    @classmethod
     def normalize(cls, raw: RawJobPosting) -> JobPosting:
         """
         Main normalization method.
@@ -91,7 +95,6 @@ class JobNormalizer:
         clean_location = cls.clean_text(raw.location) or "Remote"
         clean_description = cls.clean_text(raw.description)
 
-        # Deduplicate and clean tags
         cleaned_tags = list(
             dict.fromkeys(cls.clean_text(t) for t in raw.tags if cls.clean_text(t))
         )
@@ -105,7 +108,10 @@ class JobNormalizer:
 
         posted_date = parse_job_date(raw.posted_date_raw)
 
-        # Compute deterministic SHA-256 hash
+        # Parse deadline: check raw.deadline_raw first, then fallback to text regex
+        deadline_raw = raw.deadline_raw or cls.extract_deadline_from_text(raw.description)
+        deadline = parse_deadline(deadline_raw)
+
         dedupe_hash = JobPosting.compute_dedupe_hash(
             title=clean_title,
             company=clean_company,
@@ -120,6 +126,7 @@ class JobNormalizer:
             remote_flag=is_remote,
             url=raw.url.strip(),
             posted_date=posted_date,
+            deadline=deadline,
             description=clean_description,
             tags=cleaned_tags,
             dedupe_hash=dedupe_hash,

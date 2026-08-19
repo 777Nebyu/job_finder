@@ -66,11 +66,21 @@ class JobFilterEngine:
 
     def evaluate(self, job: JobPosting) -> FilterMatchResult:
         """
-        Evaluates a single JobPosting against filter criteria.
+        Evaluates a single JobPosting against filter criteria and deadline validity.
         Returns a FilterMatchResult indicating whether it passes.
         """
         # Ensure latest patterns are loaded
         self._refresh_patterns()
+
+        # 0. Check Deadline / Expiration: Skip jobs whose application deadline has already passed
+        if job.deadline:
+            from datetime import datetime, timezone
+            today = datetime.now(timezone.utc).date()
+            if job.deadline < today:
+                return FilterMatchResult(
+                    is_match=False,
+                    reason=f"Application deadline has passed (expired on {job.deadline.strftime('%Y-%m-%d')}).",
+                )
 
         # Search target text includes title, company, description, and tags
         search_text = f"{job.title} {job.company} {' '.join(job.tags)} {job.description[:1000]}"

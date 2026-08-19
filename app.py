@@ -1,5 +1,5 @@
 """
-Job Alert Bot — Gradio Web App & 24/7 Engine for Hugging Face Spaces.
+Job Alert Bot — Gradio Web App & 24/7 Engine for Render.com & Cloud.
 Runs the background scraper scheduler, Telegram bot polling, and a live web dashboard.
 """
 
@@ -15,21 +15,12 @@ from config.settings import AppConfig
 from src.filters.dynamic_keywords import DynamicKeywordStore
 from src.notifiers.telegram_commands import TelegramCommandHandler
 from src.orchestrator.pipeline import JobAlertPipeline
+from src.scrapers.dynamic_channels import DynamicChannelStore
 from src.storage.database import DatabaseManager
 from src.storage.repository import JobRepository
 from src.utils.logger import setup_logger
 
 logger = setup_logger("gradio_app")
-
-# ZeroGPU Compatibility Fallback
-try:
-    import spaces
-    @spaces.GPU
-    def _hf_zero_gpu_init():
-        return True
-    _hf_zero_gpu_init()
-except Exception:
-    pass
 
 # Initialize Pipeline & Services
 config = AppConfig.load_from_file("config/config.yaml")
@@ -37,11 +28,13 @@ pipeline = JobAlertPipeline(config)
 db_manager = pipeline.db_manager
 repository = pipeline.repository
 keyword_store = pipeline.keyword_store
+channel_store = pipeline.channel_store
 command_handler = TelegramCommandHandler(
     config=config,
     pipeline=pipeline,
     db_manager=db_manager,
     keyword_store=keyword_store,
+    channel_store=channel_store,
 )
 
 start_time = datetime.now(timezone.utc)
@@ -103,7 +96,7 @@ def fetch_stored_jobs(search_query: str = ""):
     """Fetch stored jobs into a DataFrame."""
     jobs = repository.get_recent_jobs(limit=100)
     if not jobs:
-        return pd.DataFrame(columns=["Title", "Company", "Location", "Remote", "Source", "Date", "Link"])
+        return pd.DataFrame(columns=["Title", "Company", "Location", "Remote", "Deadline", "Source", "Link"])
 
     data = []
     q = search_query.lower().strip()
@@ -115,8 +108,8 @@ def fetch_stored_jobs(search_query: str = ""):
             "Company": j.company,
             "Location": j.location,
             "Remote": "✅ Yes" if j.remote_flag else "🏢 On-site",
+            "Deadline": j.deadline.strftime("%Y-%m-%d") if j.deadline else "Open / Not stated",
             "Source": j.source,
-            "Date": j.posted_date.strftime("%Y-%m-%d") if j.posted_date else "N/A",
             "Link": j.url,
         })
     return pd.DataFrame(data)
@@ -129,7 +122,7 @@ def trigger_manual_scrape():
         f"✅ Scrape Complete!\n\n"
         f"• Raw Fetched: {metrics.get('raw_fetched', 0)}\n"
         f"• Unique Saved: {metrics.get('unique_saved', 0)}\n"
-        f"• Matched Criteria: {metrics.get('matched', 0)}\n"
+        f"• Matched Criteria (Valid Deadline): {metrics.get('matched', 0)}\n"
         f"• Telegram Alerts Sent: {metrics.get('notified', 0)}"
     )
     return msg, fetch_stored_jobs()
@@ -158,12 +151,41 @@ def get_keywords_text():
     return "\n".join(lines)
 
 
+def add_channel_ui(ch: str):
+    if not ch.strip():
+        return "⚠️ Please enter a Telegram channel name.", get_channels_text()
+    ok, msg = channel_store.add_channel(ch.strip())
+    return msg, get_channels_text()
+
+
+def remove_channel_ui(ch: str):
+    if not ch.strip():
+        return "⚠️ Please enter a Telegram channel name.", get_channels_text()
+    ok, msg = channel_store.remove_channel(ch.strip())
+    return msg, get_channels_text()
+
+
+def get_channels_text():
+    defaults = [
+        "freelance_ethio",
+        "Ethiojobsofficial",
+        "hahujobs",
+        "shegerjobs",
+        "harmeejobs",
+        "effoi_jobs",
+    ]
+    dyn = channel_store.get_all_dynamic_channels()
+    all_ch = list(dict.fromkeys(defaults + dyn))
+    lines = [f"• @{c}" for c in all_ch]
+    return "\n".join(lines)
+
+
 # ------------------------------------------------------------------------------
 # 3. Gradio Interface Construction
 # ------------------------------------------------------------------------------
 with gr.Blocks(title="Job Alert Bot 24/7") as demo:
     gr.Markdown("# 🔔 Job Alert Bot — 24/7 Control Center")
-    gr.Markdown("Automated multi-source scraper, deduplicator, and Telegram alert engine running continuously.")
+    gr.Markdown("Automated multi-source scraper, deduplicator, deadline evaluator, and Telegram alert engine running continuously.")
 
     with gr.Row():
         status_box = gr.Textbox(label="System Status", value="🟢 Running 24/7", interactive=False)
@@ -174,21 +196,21 @@ with gr.Blocks(title="Job Alert Bot 24/7") as demo:
     with gr.Tabs():
         with gr.TabItem("📋 Live Job Explorer"):
             with gr.Row():
-                search_input = gr.Textbox(label="Search Jobs", placeholder="Filter by title, company, or keyword...")
+                search_input = gr.Textbox(label="Search Jobs", placeholder="Filter by title, company, location, or keyword...")
                 search_btn = gr.Button("🔍 Search")
             jobs_table = gr.Dataframe(value=fetch_stored_jobs, interactive=False)
             search_btn.click(fetch_stored_jobs, inputs=[search_input], outputs=[jobs_table])
 
         with gr.TabItem("🚀 On-Demand Scrape"):
-            gr.Markdown("Click the button below to immediately trigger a scrape across Ethiojobs, Telegram Channels, RemoteOK, and Jobicy.")
+            gr.Markdown("Click the button below to immediately trigger an incremental scrape across all Telegram channels, Ethiojobs, RemoteOK, and Jobicy.")
             scrape_btn = gr.Button("⚡ Trigger Scrape Now", variant="primary")
             scrape_output = gr.Textbox(label="Scrape Results Summary", interactive=False)
             scrape_btn.click(trigger_manual_scrape, outputs=[scrape_output, jobs_table])
 
-        with gr.TabItem("🎯 Keyword Filter Management"):
+        with gr.TabItem("🎯 Keyword Filters"):
             with gr.Row():
                 with gr.Column():
-                    kw_input = gr.Textbox(label="New Keyword", placeholder="e.g. Flutter Developer, Receptionist")
+                    kw_input = gr.Textbox(label="New Keyword", placeholder="e.g. IT Officer, Receptionist")
                     with gr.Row():
                         add_btn = gr.Button("➕ Add Keyword", variant="primary")
                         rem_btn = gr.Button("➖ Remove Keyword", variant="stop")
@@ -198,6 +220,20 @@ with gr.Blocks(title="Job Alert Bot 24/7") as demo:
 
             add_btn.click(add_keyword_ui, inputs=[kw_input], outputs=[kw_status, kw_list_display])
             rem_btn.click(remove_keyword_ui, inputs=[kw_input], outputs=[kw_status, kw_list_display])
+
+        with gr.TabItem("📡 Monitored Telegram Channels"):
+            with gr.Row():
+                with gr.Column():
+                    ch_input = gr.Textbox(label="New Telegram Channel Handle", placeholder="e.g. @harmeejobs or @effoi_jobs")
+                    with gr.Row():
+                        add_ch_btn = gr.Button("➕ Add Channel", variant="primary")
+                        rem_ch_btn = gr.Button("➖ Remove Channel", variant="stop")
+                    ch_status = gr.Textbox(label="Status", interactive=False)
+                with gr.Column():
+                    ch_list_display = gr.Textbox(label="Currently Monitored Channels", value=get_channels_text, lines=10, interactive=False)
+
+            add_ch_btn.click(add_channel_ui, inputs=[ch_input], outputs=[ch_status, ch_list_display])
+            rem_ch_btn.click(remove_channel_ui, inputs=[ch_input], outputs=[ch_status, ch_list_display])
 
         with gr.TabItem("ℹ️ Telegram Bot Integration"):
             gr.Markdown(f"""
@@ -213,6 +249,9 @@ with gr.Blocks(title="Job Alert Bot 24/7") as demo:
             * `/addkeyword <word>` — Add a new search keyword on the fly.
             * `/removekeyword <word>` — Remove an existing keyword.
             * `/listkeywords` — List all active keywords.
+            * `/addchannel <@channel>` — Add a Telegram channel to scrape.
+            * `/removechannel <@channel>` — Remove a Telegram channel.
+            * `/listchannels` — List all monitored channels.
             * `/pause` & `/resume` — Control notifications.
             """)
 

@@ -16,6 +16,7 @@ from src.notifiers.base import BaseNotifier
 from src.notifiers.console_notifier import ConsoleNotifier
 from src.notifiers.telegram_notifier import TelegramNotifier
 from src.scrapers.base import BaseScraper
+from src.scrapers.dynamic_channels import DynamicChannelStore
 from src.scrapers.registry import ScraperRegistry
 from src.storage.database import DatabaseManager
 from src.storage.deduplicator import Deduplicator
@@ -37,6 +38,7 @@ class JobAlertPipeline:
         self.db_manager = DatabaseManager(self.config.database.db_path)
         self.repository = JobRepository(self.db_manager)
         self.keyword_store = DynamicKeywordStore(self.db_manager)
+        self.channel_store = DynamicChannelStore(self.db_manager)
         self.deduplicator = Deduplicator(
             repository=self.repository,
             fuzzy_threshold=self.config.database.fuzzy_threshold,
@@ -66,6 +68,8 @@ class JobAlertPipeline:
                     kwargs = {
                         "rate_limit_delay": self.config.scrapers.rate_limit_delay_seconds,
                     }
+                    if name == "telegram_channels":
+                        kwargs["channel_store"] = self.channel_store
                     if src_cfg.url:
                         kwargs["base_url"] = src_cfg.url
                     if src_cfg.max_pages and name == "ethiojobs":

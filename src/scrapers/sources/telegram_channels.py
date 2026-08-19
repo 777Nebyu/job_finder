@@ -2,6 +2,7 @@
 Telegram Channel Web Scraper.
 Scrapes public job postings from Ethiopian & African Telegram job channels via public web previews (https://t.me/s/<channel>).
 Requires no Telegram API keys or phone logins.
+Supports dynamic channels and application deadline parsing.
 """
 
 import re
@@ -9,6 +10,7 @@ from typing import List, Optional
 from bs4 import BeautifulSoup
 from src.models.raw_job import RawJobPosting
 from src.scrapers.base import BaseScraper
+from src.scrapers.dynamic_channels import DynamicChannelStore
 from src.scrapers.registry import ScraperRegistry
 
 
@@ -16,11 +18,13 @@ from src.scrapers.registry import ScraperRegistry
 class TelegramChannelScraper(BaseScraper):
     """
     Scrapes job postings from public Telegram channels via web previews.
-    Channels monitored by default:
+    Default monitored channels:
     - @freelance_ethio (Afriwork official feed)
     - @Ethiojobsofficial
     - @hahujobs
     - @shegerjobs
+    - @harmeejobs
+    - @effoi_jobs
     """
 
     source_name = "telegram_channels"
@@ -30,22 +34,39 @@ class TelegramChannelScraper(BaseScraper):
         "Ethiojobsofficial",
         "hahujobs",
         "shegerjobs",
+        "harmeejobs",
+        "effoi_jobs",
     ]
 
     def __init__(
         self,
         channels: Optional[List[str]] = None,
-        max_posts_per_channel: int = 15,
+        max_posts_per_channel: int = 30,
+        channel_store: Optional[DynamicChannelStore] = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.channels = channels or self.DEFAULT_CHANNELS
+        self.default_channels = channels or self.DEFAULT_CHANNELS
         self.max_posts_per_channel = max_posts_per_channel
+        self.channel_store = channel_store
+
+    def get_active_channels(self) -> List[str]:
+        """Returns merged list of default and dynamically added channels."""
+        channels = list(self.default_channels)
+        if self.channel_store:
+            dynamic_list = self.channel_store.get_all_dynamic_channels()
+            for ch in dynamic_list:
+                if ch not in channels:
+                    channels.append(ch)
+        return channels
 
     def fetch(self) -> List[RawJobPosting]:
         all_postings: List[RawJobPosting] = []
+        active_channels = self.get_active_channels()
 
-        for channel in self.channels:
+        self.logger.info(f"Scraping {len(active_channels)} Telegram channels: {active_channels}")
+
+        for channel in active_channels:
             url = f"https://t.me/s/{channel.lstrip('@')}"
             self.logger.debug(f"Fetching Telegram channel @{channel}: {url}")
 
@@ -73,7 +94,7 @@ class TelegramChannelScraper(BaseScraper):
         return all_postings
 
     def _parse_message(self, msg_elem, channel_name: str) -> Optional[RawJobPosting]:
-        """Parses a single Telegram message container into RawJobPosting."""
+        """Parses a single Telegram message container into RawJobPosting with deadline."""
         text_div = msg_elem.find("div", class_="tgme_widget_message_text")
         date_elem = msg_elem.find("time")
         link_elem = msg_elem.find("a", class_="tgme_widget_message_date")
@@ -106,7 +127,6 @@ class TelegramChannelScraper(BaseScraper):
         if not title or len(title) < 3:
             return None
 
-        # Clean title artifacts
         title = title.split("\n")[0].strip()
 
         # 2. Company Extraction
@@ -132,6 +152,12 @@ class TelegramChannelScraper(BaseScraper):
         if m_loc:
             location = m_loc.group(1).strip()
 
+        # 4. Deadline Extraction
+        deadline_raw = None
+        m_dl = re.search(r"(?:Deadline|Closing\s*Date|Apply\s*Before|Expires)\s*:\s*([^\n<,]+(?:\s*,\s*\d{4})?)", raw_text, re.I)
+        if m_dl:
+            deadline_raw = m_dl.group(1).strip()
+
         is_remote = "remote" in raw_text.lower() or "remote" in title.lower()
         post_url = link_elem.get("href", f"https://t.me/s/{channel_name}")
         dt_str = date_elem.get("datetime") if date_elem else None
@@ -147,6 +173,7 @@ class TelegramChannelScraper(BaseScraper):
             remote_flag=is_remote,
             url=post_url,
             posted_date_raw=dt_str,
+            deadline_raw=deadline_raw,
             description=raw_text,
             tags=tags,
         )

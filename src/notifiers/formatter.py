@@ -31,10 +31,12 @@ class MessageFormatter:
             tag_badges = [f"#{t.replace(' ', '_').replace('-', '_')}" for t in job.tags[:5]]
             tags_str = f"\n🏷️ <i>{html.escape(' '.join(tag_badges))}</i>"
 
-        # Date string
+        # Date strings
         date_str = ""
         if job.posted_date:
             date_str = f"\n📅 <b>Posted:</b> {job.posted_date.strftime('%b %d, %Y')}"
+        if job.deadline:
+            date_str += f"\n⏰ <b>Deadline:</b> {job.deadline.strftime('%b %d, %Y')}"
 
         # Clean description preview (first 250 characters)
         desc_preview = ""
