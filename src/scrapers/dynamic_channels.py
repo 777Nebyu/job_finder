@@ -1,8 +1,7 @@
 """
 Dynamic Channel Store for Telegram Channel Scraper.
-Allows adding and removing multiple Telegram job channels dynamically.
-Guarantees zero duplicate scraping and dual persistence (SQLite + JSON state file)
-so custom channels survive server restarts and container redeploys.
+Pre-seeds and persists all Telegram job channels in SQLite and dynamic_state.json
+so they are permanently available across every deploy, reboot, and database creation.
 """
 
 from datetime import datetime, timezone
@@ -22,13 +21,37 @@ CREATE TABLE IF NOT EXISTS dynamic_channels (
 );
 """
 
-DEFAULT_MONITORED_CHANNELS = [
-    "freelance_ethio",
+ALL_SYSTEM_CHANNELS = [
+    "afrojoblink",
+    "josad_software",
     "ethiojobsofficial",
+    "josad_it",
+    "ethio_tech_jobs",
+    "hawassajobs",
+    "enqujob",
+    "josad_digital",
+    "oportunity_hub",
+    "arifjobs",
+    "remotejobss",
+    "MMCYJobs",
+    "DagmawiBabiJobs",
+    "joblinkET",
+    "BeleqetJobs",
+    "sirraconnect",
+    "Maroset",
+    "Capitalmatch",
+    "work_remotely",
+    "addistechjobs",
+    "FreelanceDire",
+    "freelance_ethio",
     "hahujobs",
     "shegerjobs",
     "harmeejobs",
     "effoi_jobs",
+    "elelanajobs",
+    "qefirajobs",
+    "asham_jobs",
+    "tikvahjobs",
 ]
 
 
@@ -39,6 +62,7 @@ class DynamicChannelStore:
         self.db_manager = db_manager
         self.state_store = state_store or PersistentStateStore()
         self._init_table()
+        self._seed_default_channels()
         self._restore_from_state_file()
 
     def _init_table(self) -> None:
@@ -46,8 +70,19 @@ class DynamicChannelStore:
             conn.execute(CREATE_CHANNELS_TABLE)
             conn.commit()
 
+    def _seed_default_channels(self) -> None:
+        """Permanently seeds all predefined channels into SQLite on boot."""
+        now_str = datetime.now(timezone.utc).isoformat()
+        with self.db_manager.get_connection() as conn:
+            for ch in ALL_SYSTEM_CHANNELS:
+                conn.execute(
+                    "INSERT INTO dynamic_channels (channel_name, created_at) VALUES (?, ?) ON CONFLICT(channel_name) DO NOTHING;",
+                    (ch.lower(), now_str),
+                )
+            conn.commit()
+
     def _restore_from_state_file(self) -> None:
-        """Restores channels from JSON state file on boot/restart."""
+        """Restores any additional custom channels from JSON state file on boot/restart."""
         state = self.state_store.load_state()
         saved_channels = state.get("dynamic_channels", [])
         now_str = datetime.now(timezone.utc).isoformat()
@@ -58,7 +93,7 @@ class DynamicChannelStore:
                 if clean_ch:
                     conn.execute(
                         "INSERT INTO dynamic_channels (channel_name, created_at) VALUES (?, ?) ON CONFLICT(channel_name) DO NOTHING;",
-                        (clean_ch, now_str),
+                        (clean_ch.lower(), now_str),
                     )
             conn.commit()
 
@@ -71,21 +106,18 @@ class DynamicChannelStore:
 
     @staticmethod
     def clean_channel_name(channel: str) -> str:
-        """Cleans and standardizes channel handle (e.g. 'https://t.me/freelance_ethio' or '@freelance_ethio' -> 'freelance_ethio')."""
+        """Cleans and standardizes channel handle."""
         ch = channel.strip()
         ch = re.sub(r"^https?://t\.me/(?:s/)?", "", ch)
         ch = ch.lstrip("@").strip().rstrip("/")
         ch = ch.strip(", ")
-        return ch
+        return ch.lower()
 
     def add_channel(self, channel: str) -> Tuple[bool, str]:
         """Add a dynamic Telegram channel to scrape. Returns (success, message)."""
         clean_ch = self.clean_channel_name(channel)
         if not clean_ch:
             return False, "⚠️ Invalid channel name."
-
-        if clean_ch.lower() in [c.lower() for c in DEFAULT_MONITORED_CHANNELS]:
-            return False, f"⚠️ Channel @{clean_ch} is already in the default monitored list."
 
         now_str = datetime.now(timezone.utc).isoformat()
         try:
@@ -138,7 +170,7 @@ class DynamicChannelStore:
             self._sync_to_state_file()
             logger.info(f"Removed dynamic channel: @{clean_ch}")
             return True, f"✅ Removed @{clean_ch} from monitored channels."
-        return False, f"⚠️ Channel @{clean_ch} was not found in dynamic channels."
+        return False, f"⚠️ Channel @{clean_ch} was not found in database."
 
     def remove_multiple_channels(self, raw_input: str) -> Tuple[List[str], List[str]]:
         """

@@ -10,7 +10,7 @@ from typing import List, Optional
 from bs4 import BeautifulSoup
 from src.models.raw_job import RawJobPosting
 from src.scrapers.base import BaseScraper
-from src.scrapers.dynamic_channels import DynamicChannelStore
+from src.scrapers.dynamic_channels import ALL_SYSTEM_CHANNELS, DynamicChannelStore
 from src.scrapers.registry import ScraperRegistry
 
 
@@ -18,25 +18,10 @@ from src.scrapers.registry import ScraperRegistry
 class TelegramChannelScraper(BaseScraper):
     """
     Scrapes job postings from public Telegram channels via web previews.
-    Default monitored channels:
-    - @freelance_ethio (Afriwork official feed)
-    - @Ethiojobsofficial
-    - @hahujobs
-    - @shegerjobs
-    - @harmeejobs
-    - @effoi_jobs
+    Pre-configured with 30+ top Ethiopian & African job channels.
     """
 
     source_name = "telegram_channels"
-
-    DEFAULT_CHANNELS = [
-        "freelance_ethio",
-        "Ethiojobsofficial",
-        "hahujobs",
-        "shegerjobs",
-        "harmeejobs",
-        "effoi_jobs",
-    ]
 
     def __init__(
         self,
@@ -46,7 +31,7 @@ class TelegramChannelScraper(BaseScraper):
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.default_channels = channels or self.DEFAULT_CHANNELS
+        self.default_channels = channels or ALL_SYSTEM_CHANNELS
         self.max_posts_per_channel = max_posts_per_channel
         self.channel_store = channel_store
 
@@ -64,7 +49,7 @@ class TelegramChannelScraper(BaseScraper):
         all_postings: List[RawJobPosting] = []
         active_channels = self.get_active_channels()
 
-        self.logger.info(f"Scraping {len(active_channels)} Telegram channels: {active_channels}")
+        self.logger.info(f"Scraping {len(active_channels)} Telegram channels...")
 
         for channel in active_channels:
             url = f"https://t.me/s/{channel.lstrip('@')}"
